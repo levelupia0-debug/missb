@@ -1,0 +1,8 @@
+{
+  "name": "Miss beauty",
+  "description": "Miss Beauty Atelier — Architectural hair care, bespoke braids, silk press, and botanical coloring. Book your signature appointment online.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Miss beauty — Architectural Hair Salon & Bespoke Atelier</title>
+    <meta name="description" content="Miss Beauty Atelier — Architectural hair care, bespoke braids, silk press, and botanical coloring. Book your signature appointment online." />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Miss beauty — Architectural Hair Salon & Bespoke Atelier" />
+    <meta property="og:description" content="Miss Beauty Atelier — Architectural hair care, bespoke braids, silk press, and botanical coloring. Book your signature appointment online." />
+    <meta property="og:site_name" content="Miss beauty" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Miss beauty — Architectural Hair Salon & Bespoke Atelier" />
+    <meta name="twitter:description" content="Miss Beauty Atelier — Architectural hair care, bespoke braids, silk press, and botanical coloring. Book your signature appointment online." />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "HairSalon",
+        "name": "Miss beauty",
+        "description": "Architectural hair care, bespoke knotless braids, silk press, protective styling, and botanical coloring in a serene sanctuary.",
+        "priceRange": "$$$",
+        "address": {
+          "@type": "PostalAddress",
+          "streetAddress": "24 Rue Saint-Honoré",
+          "addressLocality": "Paris",
+          "postalCode": "75001",
+          "addressCountry": "FR"
+        },
+        "openingHoursSpecification": [
+          {
+            "@type": "OpeningHoursSpecification",
+            "dayOfWeek": ["Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"],
+            "opens": "09:30",
+            "closes": "19:30"
+          }
+        ]
+      }
+    </script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500&family=Playfair+Display:ital,wght@0,400;0,500;0,600;1,400&display=swap');
+      
+      html {
+        scroll-behavior: smooth;
+        scroll-padding-top: 80px; /* Offset for fixed navbar */
+      }
+
+      body {
+        font-family: 'Inter', sans-serif;
+        background-color: #F5F2EB; /* Warm cream background */
+        color: #2C2A26; /* Warm dark charcoal */
+      }
+      
+      h1, h2, h3, h4, .font-serif {
+        font-family: 'Playfair Display', serif;
+      }
+
+      /* Hide scrollbar for clean aesthetic in horizontal scrolls if any */
+      .no-scrollbar::-webkit-scrollbar {
+        display: none;
+      }
+      .no-scrollbar {
+        -ms-overflow-style: none;
+        scrollbar-width: none;
+      }
+
+      @keyframes fade-in-up {
+        0% { opacity: 0; transform: translateY(30px); }
+        100% { opacity: 1; transform: translateY(0); }
+      }
+
+      @keyframes pro-reveal-up {
+        0% { opacity: 0; transform: translateY(36px) scale(0.985); filter: blur(4px); }
+        100% { opacity: 1; transform: translateY(0) scale(1); filter: blur(0px); }
+      }
+
+      .animate-fade-in-up {
+        animation: fade-in-up 1s cubic-bezier(0.2, 1, 0.3, 1) forwards;
+      }
+
+      .animate-pro-reveal {
+        opacity: 0;
+        animation: pro-reveal-up 1.1s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+      }
+      
+      .animate-delay-100 { animation-delay: 0.12s; }
+      .animate-delay-200 { animation-delay: 0.24s; }
+      .animate-delay-300 { animation-delay: 0.36s; }
+      .animate-delay-400 { animation-delay: 0.48s; }
+      .animate-delay-500 { animation-delay: 0.6s; }
+
+      /* Scroll reveal system */
+      .reveal-on-scroll {
+        opacity: 0;
+        transform: translateY(36px);
+        transition: opacity 0.95s cubic-bezier(0.16, 1, 0.3, 1),
+                    transform 0.95s cubic-bezier(0.16, 1, 0.3, 1);
+        will-change: opacity, transform;
+      }
+
+      .reveal-on-scroll.reveal-scale {
+        transform: translateY(28px) scale(0.97);
+      }
+
+      .reveal-on-scroll.is-visible {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+
+      .reveal-delay-1 { transition-delay: 0.1s; }
+      .reveal-delay-2 { transition-delay: 0.22s; }
+      .reveal-delay-3 { transition-delay: 0.34s; }
+
+      @media (prefers-reduced-motion: reduce) {
+        .reveal-on-scroll,
+        .animate-pro-reveal,
+        .animate-fade-in-up {
+          opacity: 1 !important;
+          transform: none !important;
+          filter: none !important;
+          transition: none !important;
+          animation: none !important;
+        }
+      }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "@google/genai": "https://esm.sh/@google/genai@^1.29.0",
+    "react/": "https://esm.sh/react@^19.2.0/",
+    "react": "https://esm.sh/react@^19.2.0",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.0/"
+  }
+}
+</script>
+<link rel="stylesheet" href="/index.css">
+</head>
+  <body>
+    <div id="root"></div>
+  <script type="module" src="/index.tsx"></script>
+</body>
+</html>
