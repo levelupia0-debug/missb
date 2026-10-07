@@ -267,144 +267,124 @@ const Checkout: React.FC<CheckoutProps> = ({
 
         {step === 6 && confirmedBooking ? (
           /* =================================================================
-             STEP 6: CONFIRMATION VIEW
+             STEP 6: OFFICIAL RESERVATION TICKET & PRINTABLE PASS
              ================================================================= */
-          <div className="max-w-3xl mx-auto bg-white/80 border border-[#D6D1C7] p-8 md:p-16 animate-fade-in-up">
-            <div className="text-center pb-10 border-b border-[#D6D1C7]">
-              <span className="inline-block text-xs uppercase tracking-[0.2em] text-[#5D5A53] mb-3">
-                Reference · {confirmedBooking.reference}
-              </span>
-              <h1 className="text-4xl md:text-5xl font-serif text-[#2C2A26] mb-4">
-                Appointment confirmed.
-              </h1>
-              <p className="text-[#5D5A53] font-light max-w-md mx-auto leading-relaxed">
-                Your appointment has been confirmed. A confirmation email has been dispatched to{' '}
-                <span className="text-[#2C2A26] font-normal">
-                  {confirmedBooking.customerEmail}
-                </span>{' '}
-                via LevelUp Email Concierge.
-              </p>
+          <div className="max-w-3xl mx-auto animate-fade-in-up">
+            <div
+              id="printable-reservation-ticket"
+              className="bg-white border border-[#D6D1C7] shadow-xl overflow-hidden"
+            >
+              {/* Ticket Header Banner */}
+              <div className="bg-[#2C2A26] text-[#F5F2EB] px-8 py-10 text-center">
+                <span className="inline-block text-[10px] uppercase tracking-[0.3em] text-[#D6D1C7] mb-2">
+                  Official Sanctuary Reservation Ticket
+                </span>
+                <h1 className="text-3xl md:text-5xl font-serif font-normal text-[#F5F2EB]">
+                  {DEFAULT_BUSINESS_SETTINGS.salonName}
+                </h1>
+                <p className="text-xs uppercase tracking-[0.2em] text-[#A8A29E] mt-2">
+                  {DEFAULT_BUSINESS_SETTINGS.address} · {DEFAULT_BUSINESS_SETTINGS.city}
+                </p>
+              </div>
+
+              {/* Ticket Code Stub */}
+              <div className="bg-[#F5F2EB] border-b border-dashed border-[#D6D1C7] px-8 py-8 text-center">
+                <span className="block text-[10px] uppercase tracking-[0.28em] text-[#A8A29E] mb-2">
+                  Reservation Ticket Code
+                </span>
+                <div className="font-serif text-3xl md:text-4xl tracking-[0.16em] text-[#2C2A26] font-medium select-all">
+                  {confirmedBooking.reference}
+                </div>
+                <p className="text-xs text-[#5D5A53] font-light mt-3">
+                  Your official ticket has been automatically sent to{' '}
+                  <span className="text-[#2C2A26] font-medium">
+                    {confirmedBooking.customerEmail}
+                  </span>
+                  . Present this code or print your pass upon arrival.
+                </p>
+              </div>
+
+              {/* Ticket Details */}
+              <div className="p-8 md:p-12 space-y-5 text-sm">
+                <div className="flex justify-between items-center pb-4 border-b border-[#EBE7DE]">
+                  <span className="uppercase tracking-widest text-xs text-[#A8A29E]">
+                    Guest Name
+                  </span>
+                  <span className="font-medium text-[#2C2A26]">
+                    {confirmedBooking.customerName}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center pb-4 border-b border-[#EBE7DE]">
+                  <span className="uppercase tracking-widest text-xs text-[#A8A29E]">
+                    Selected Ritual
+                  </span>
+                  <span className="font-serif text-lg text-[#2C2A26]">
+                    {confirmedBooking.serviceName} ({confirmedBooking.duration})
+                  </span>
+                </div>
+                <div className="flex justify-between items-center pb-4 border-b border-[#EBE7DE]">
+                  <span className="uppercase tracking-widest text-xs text-[#A8A29E]">
+                    Date
+                  </span>
+                  <span className="text-[#2C2A26]">
+                    {formatHumanDate(confirmedBooking.appointmentDate)}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center pb-4 border-b border-[#EBE7DE]">
+                  <span className="uppercase tracking-widest text-xs text-[#A8A29E]">
+                    Time
+                  </span>
+                  <span className="text-[#2C2A26] tabular-nums">
+                    {confirmedBooking.startTime} – {confirmedBooking.endTime}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center pb-4 border-b border-[#EBE7DE]">
+                  <span className="uppercase tracking-widest text-xs text-[#A8A29E]">
+                    Status
+                  </span>
+                  <span className="px-3 py-1 bg-[#EBE7DE] text-[#2C2A26] text-xs uppercase tracking-widest">
+                    {confirmedBooking.status}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center pt-2">
+                  <span className="uppercase tracking-widest text-xs text-[#A8A29E]">
+                    Estimated Investment
+                  </span>
+                  <span className="font-serif text-2xl text-[#2C2A26] tabular-nums">
+                    ${confirmedBooking.price}
+                  </span>
+                </div>
+              </div>
             </div>
 
-            <div className="py-10 space-y-5 border-b border-[#D6D1C7] text-sm">
-              <div className="flex justify-between items-center">
-                <span className="uppercase tracking-widest text-xs text-[#A8A29E]">
-                  Salon Sanctuary
-                </span>
-                <span className="font-medium text-[#2C2A26]">
-                  {DEFAULT_BUSINESS_SETTINGS.salonName} — {DEFAULT_BUSINESS_SETTINGS.address}
-                </span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="uppercase tracking-widest text-xs text-[#A8A29E]">
-                  Guest Name
-                </span>
-                <span className="text-[#2C2A26]">{confirmedBooking.customerName}</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="uppercase tracking-widest text-xs text-[#A8A29E]">
-                  Service
-                </span>
-                <span className="font-serif text-lg text-[#2C2A26]">
-                  {confirmedBooking.serviceName} ({confirmedBooking.duration})
-                </span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="uppercase tracking-widest text-xs text-[#A8A29E]">
-                  Date
-                </span>
-                <span className="text-[#2C2A26]">
-                  {formatHumanDate(confirmedBooking.appointmentDate)}
-                </span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="uppercase tracking-widest text-xs text-[#A8A29E]">
-                  Time
-                </span>
-                <span className="text-[#2C2A26] tabular-nums">
-                  {confirmedBooking.startTime} – {confirmedBooking.endTime}
-                </span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="uppercase tracking-widest text-xs text-[#A8A29E]">
-                  Estimated Investment
-                </span>
-                <span className="font-serif text-xl text-[#2C2A26] tabular-nums">
-                  ${confirmedBooking.price}
-                </span>
-              </div>
-            </div>
+            {/* Ticket Actions (Hidden when printing) */}
+            <div className="pt-8 flex flex-col sm:flex-row gap-4 justify-center print:hidden">
+              <button
+                type="button"
+                onClick={() => window.print()}
+                className="px-8 py-4 bg-[#2C2A26] text-[#F5F2EB] text-xs font-medium uppercase tracking-widest hover:bg-[#433E38] transition-colors"
+              >
+                Print Reservation Ticket
+              </button>
 
-            {/* Actions */}
-            <div className="pt-10 flex flex-col sm:flex-row gap-4 justify-center">
               {onViewAppointment && (
                 <button
+                  type="button"
                   onClick={() => onViewAppointment(confirmedBooking.id)}
-                  className="px-8 py-4 bg-[#2C2A26] text-[#F5F2EB] text-xs font-medium uppercase tracking-widest hover:bg-[#433E38] transition-colors"
-                >
-                  View appointment in My Account
-                </button>
-              )}
-
-              {confirmedEmailLog && (
-                <button
-                  onClick={() => setShowEmailModal(true)}
                   className="px-8 py-4 border border-[#2C2A26] text-[#2C2A26] text-xs font-medium uppercase tracking-widest hover:bg-[#EBE7DE] transition-colors"
                 >
-                  Open Confirmation Email
+                  View in My Account
                 </button>
               )}
 
               <button
+                type="button"
                 onClick={onBack}
                 className="px-8 py-4 text-xs font-medium uppercase tracking-widest text-[#5D5A53] hover:text-[#2C2A26] transition-colors"
               >
                 Return Home
               </button>
             </div>
-
-            {/* LevelUp Email Preview Modal */}
-            {showEmailModal && confirmedEmailLog && (
-              <div className="fixed inset-0 z-50 bg-[#2C2A26]/50 backdrop-blur-sm flex items-center justify-center p-4">
-                <div className="bg-[#F5F2EB] border border-[#D6D1C7] max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6 md:p-8 shadow-2xl">
-                  <div className="flex justify-between items-center pb-4 mb-6 border-b border-[#D6D1C7]">
-                    <div>
-                      <span className="block text-[11px] uppercase tracking-widest text-[#A8A29E]">
-                        LevelUp Email Service · Dispatched to {confirmedEmailLog.to}
-                      </span>
-                      <h3 className="font-serif text-xl text-[#2C2A26]">
-                        Subject: {confirmedEmailLog.subject}
-                      </h3>
-                    </div>
-                    <button
-                      onClick={() => setShowEmailModal(false)}
-                      className="text-xs uppercase tracking-widest text-[#5D5A53] hover:text-[#2C2A26]"
-                    >
-                      Close
-                    </button>
-                  </div>
-
-                  <div
-                    className="mb-6"
-                    dangerouslySetInnerHTML={{ __html: confirmedEmailLog.htmlPreview }}
-                  />
-
-                  <div className="flex justify-end gap-4 pt-4 border-t border-[#D6D1C7]">
-                    {onViewAppointment && (
-                      <button
-                        onClick={() => {
-                          setShowEmailModal(false);
-                          onViewAppointment(confirmedBooking.id);
-                        }}
-                        className="px-6 py-3 bg-[#2C2A26] text-[#F5F2EB] text-xs uppercase tracking-widest"
-                      >
-                        Click Email CTA: View Appointment
-                      </button>
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
           </div>
         ) : (
           /* =================================================================

@@ -7,12 +7,24 @@ import React, { useState, useEffect } from 'react';
 import { BRAND_NAME } from '../constants';
 import { UserProfile } from '../types';
 
+type NavRoute =
+  | 'home'
+  | 'services'
+  | 'about'
+  | 'journal'
+  | 'contact'
+  | 'checkout'
+  | 'login'
+  | 'account'
+  | 'dashboard';
+
 interface NavbarProps {
   onNavClick: (e: React.MouseEvent<HTMLAnchorElement>, targetId: string) => void;
   cartCount: number;
   onOpenCart: () => void;
   currentUser?: UserProfile | null;
-  onNavigateRoute?: (route: 'home' | 'services' | 'checkout' | 'login' | 'account' | 'dashboard') => void;
+  onNavigateRoute?: (route: NavRoute) => void;
+  activeRoute?: string;
   forceDarkText?: boolean;
 }
 
@@ -22,6 +34,7 @@ const Navbar: React.FC<NavbarProps> = ({
   onOpenCart,
   currentUser,
   onNavigateRoute,
+  activeRoute = 'home',
   forceDarkText = false
 }) => {
   const [scrolled, setScrolled] = useState(false);
@@ -35,9 +48,14 @@ const Navbar: React.FC<NavbarProps> = ({
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  const handleLinkClick = (e: React.MouseEvent<HTMLAnchorElement>, targetId: string) => {
+  const handleRouteClick = (e: React.MouseEvent<HTMLAnchorElement>, route: NavRoute) => {
+    e.preventDefault();
     setMobileMenuOpen(false);
-    onNavClick(e, targetId);
+    if (onNavigateRoute) {
+      onNavigateRoute(route);
+    } else {
+      onNavClick(e, route);
+    }
   };
 
   const handleCartClick = (e: React.MouseEvent) => {
@@ -49,10 +67,18 @@ const Navbar: React.FC<NavbarProps> = ({
   const textColorClass =
     scrolled || mobileMenuOpen || forceDarkText ? 'text-[#2C2A26]' : 'text-[#F5F2EB]';
 
+  const navItems: { label: string; route: NavRoute; href: string }[] = [
+    { label: 'Services', route: 'services', href: '/services' },
+    { label: 'Book', route: 'checkout', href: '/book' },
+    { label: 'Atelier', route: 'about', href: '/about' },
+    { label: 'Journal', route: 'journal', href: '/journal' },
+    { label: 'Contact', route: 'contact', href: '/contact' }
+  ];
+
   return (
     <>
       <nav
-        className={`fixed top-0 left-0 right-0 z-50 transition-all duration-700 ease-in-out ${
+        className={`fixed top-0 left-0 right-0 z-50 transition-all duration-700 ease-in-out print:hidden ${
           scrolled || mobileMenuOpen || forceDarkText
             ? 'bg-[#F5F2EB]/95 backdrop-blur-md py-4 shadow-sm border-b border-[#D6D1C7]/40'
             : 'bg-transparent py-8'
@@ -62,60 +88,33 @@ const Navbar: React.FC<NavbarProps> = ({
           {/* Zone 1: Brand Title */}
           <a
             href="/"
-            onClick={(e) => {
-              e.preventDefault();
-              setMobileMenuOpen(false);
-              window.scrollTo({ top: 0, behavior: 'smooth' });
-              onNavClick(e, '');
-            }}
+            onClick={(e) => handleRouteClick(e, 'home')}
             className={`text-3xl font-serif font-medium tracking-tight z-50 relative transition-colors duration-500 whitespace-nowrap ${textColorClass}`}
           >
             {BRAND_NAME}
           </a>
 
-          {/* Zone 2: Center Links - Desktop */}
+          {/* Zone 2: Center Links - Desktop (Each opens its own dedicated page) */}
           <div
             className={`hidden md:flex items-center gap-10 text-sm font-medium tracking-widest uppercase transition-colors duration-500 ${textColorClass}`}
           >
-            <a
-              href="/services"
-              onClick={(e) => handleLinkClick(e, 'products')}
-              className="hover:opacity-60 transition-opacity whitespace-nowrap"
-            >
-              Services
-            </a>
-            <a
-              href="/book"
-              onClick={(e) => {
-                e.preventDefault();
-                setMobileMenuOpen(false);
-                if (onNavigateRoute) onNavigateRoute('checkout');
-              }}
-              className="hover:opacity-60 transition-opacity whitespace-nowrap"
-            >
-              Book
-            </a>
-            <a
-              href="/about"
-              onClick={(e) => handleLinkClick(e, 'about')}
-              className="hover:opacity-60 transition-opacity whitespace-nowrap"
-            >
-              Atelier
-            </a>
-            <a
-              href="#journal"
-              onClick={(e) => handleLinkClick(e, 'journal')}
-              className="hover:opacity-60 transition-opacity whitespace-nowrap"
-            >
-              Journal
-            </a>
-            <a
-              href="/contact"
-              onClick={(e) => handleLinkClick(e, 'contact')}
-              className="hover:opacity-60 transition-opacity whitespace-nowrap"
-            >
-              Contact
-            </a>
+            {navItems.map((item) => {
+              const isActive = activeRoute === item.route;
+              return (
+                <a
+                  key={item.route}
+                  href={item.href}
+                  onClick={(e) => handleRouteClick(e, item.route)}
+                  className={`transition-opacity whitespace-nowrap pb-1 ${
+                    isActive
+                      ? 'border-b border-[#2C2A26] opacity-100'
+                      : 'hover:opacity-60 opacity-85'
+                  }`}
+                >
+                  {item.label}
+                </a>
+              );
+            })}
           </div>
 
           {/* Zone 3: Right Actions */}
@@ -193,52 +192,24 @@ const Navbar: React.FC<NavbarProps> = ({
 
       {/* Mobile Menu Overlay */}
       <div
-        className={`fixed inset-0 bg-[#F5F2EB] z-40 flex flex-col justify-center items-center transition-all duration-500 ease-in-out ${
+        className={`fixed inset-0 bg-[#F5F2EB] z-40 flex flex-col justify-center items-center transition-all duration-500 ease-in-out print:hidden ${
           mobileMenuOpen
             ? 'opacity-100 translate-y-0 pointer-events-auto'
             : 'opacity-0 -translate-y-10 pointer-events-none'
         }`}
       >
         <div className="flex flex-col items-center space-y-8 text-xl font-serif font-medium text-[#2C2A26]">
-          <a
-            href="/services"
-            onClick={(e) => handleLinkClick(e, 'products')}
-            className="hover:opacity-60 transition-opacity"
-          >
-            Services
-          </a>
-          <a
-            href="/book"
-            onClick={(e) => {
-              e.preventDefault();
-              setMobileMenuOpen(false);
-              if (onNavigateRoute) onNavigateRoute('checkout');
-            }}
-            className="hover:opacity-60 transition-opacity"
-          >
-            Book Appointment
-          </a>
-          <a
-            href="/about"
-            onClick={(e) => handleLinkClick(e, 'about')}
-            className="hover:opacity-60 transition-opacity"
-          >
-            Atelier
-          </a>
-          <a
-            href="#journal"
-            onClick={(e) => handleLinkClick(e, 'journal')}
-            className="hover:opacity-60 transition-opacity"
-          >
-            Journal
-          </a>
-          <a
-            href="/contact"
-            onClick={(e) => handleLinkClick(e, 'contact')}
-            className="hover:opacity-60 transition-opacity"
-          >
-            Contact
-          </a>
+          {navItems.map((item) => (
+            <a
+              key={item.route}
+              href={item.href}
+              onClick={(e) => handleRouteClick(e, item.route)}
+              className="hover:opacity-60 transition-opacity"
+            >
+              {item.label}
+            </a>
+          ))}
+
           <button
             onClick={() => {
               setMobileMenuOpen(false);

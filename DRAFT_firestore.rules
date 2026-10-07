@@ -1,0 +1,342 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global Safety Net (Default Deny)
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Hardened Global Primitives
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerified() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isOwner(userId) {
+      return isVerified() && request.auth.uid == userId;
+    }
+
+    function hasOwnerRole() {
+      return isVerified() &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'owner';
+    }
+
+    function isAdmin() {
+      return isVerified() && (
+        request.auth.token.email == 'alsherafael@gmail.com' ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
+        hasOwnerRole()
+      );
+    }
+
+    // Validation Blueprints (Anti-Update-Gap)
+    function isValidUserPublic(data) {
+      return data.keys().hasAll(['uid', 'name', 'role', 'createdAt', 'updatedAt']) &&
+        data.keys().hasOnly(['uid', 'name', 'role', 'createdAt', 'updatedAt']) &&
+        data.uid is string && data.uid.size() >= 1 && data.uid.size() <= 128 && data.uid.matches('^[a-zA-Z0-9_\\-]+$') &&
+        (data.uid == request.auth.uid || isAdmin()) &&
+        data.name is string && data.name.size() >= 1 && data.name.size() <= 100 &&
+        data.role is string && data.role.size() <= 20 && (data.role == 'customer' || data.role == 'owner') &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidUserPrivate(data) {
+      return data.keys().hasAll(['uid', 'email', 'phone', 'notes', 'preferredStylist', 'updatedAt']) &&
+        data.keys().hasOnly(['uid', 'email', 'phone', 'notes', 'preferredStylist', 'updatedAt']) &&
+        data.uid is string && data.uid.size() >= 1 && data.uid.size() <= 128 && data.uid.matches('^[a-zA-Z0-9_\\-]+$') &&
+        (data.uid == request.auth.uid || isAdmin()) &&
+        data.email is string && data.email.size() >= 3 && data.email.size() <= 160 &&
+        data.phone is string && data.phone.size() >= 0 && data.phone.size() <= 40 &&
+        data.notes is string && data.notes.size() >= 0 && data.notes.size() <= 1000 &&
+        data.preferredStylist is string && data.preferredStylist.size() >= 0 && data.preferredStylist.size() <= 100 &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidServiceItem(data) {
+      return data.keys().hasAll([
+          'id', 'slug', 'name', 'tagline', 'description', 'longDescription',
+          'price', 'duration', 'durationMinutes', 'category', 'imageUrl', 'active', 'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'id', 'slug', 'name', 'tagline', 'description', 'longDescription',
+          'price', 'duration', 'durationMinutes', 'category', 'imageUrl', 'active', 'updatedAt'
+        ]) &&
+        data.id is string && data.id.size() >= 1 && data.id.size() <= 128 && data.id.matches('^[a-zA-Z0-9_\\-]+$') &&
+        data.slug is string && data.slug.size() >= 1 && data.slug.size() <= 120 && data.slug.matches('^[a-zA-Z0-9_\\-]+$') &&
+        data.name is string && data.name.size() >= 1 && data.name.size() <= 120 &&
+        data.tagline is string && data.tagline.size() >= 0 && data.tagline.size() <= 200 &&
+        data.description is string && data.description.size() >= 1 && data.description.size() <= 600 &&
+        data.longDescription is string && data.longDescription.size() >= 0 && data.longDescription.size() <= 2000 &&
+        data.price is number && data.price >= 0 && data.price <= 10000 &&
+        data.duration is string && data.duration.size() >= 1 && data.duration.size() <= 40 &&
+        data.durationMinutes is number && data.durationMinutes >= 15 && data.durationMinutes <= 600 &&
+        data.category is string && data.category.size() <= 40 && (
+          data.category == 'Cut & Styling' ||
+          data.category == 'Braids & Protective' ||
+          data.category == 'Color & Extensions' ||
+          data.category == 'Rituals & Bridal'
+        ) &&
+        data.imageUrl is string && data.imageUrl.size() >= 1 && data.imageUrl.size() <= 500 &&
+        data.active is bool &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidBookingRecord(data) {
+      return data.keys().hasAll([
+          'id', 'referenceCode', 'customerId', 'customerName', 'customerEmail', 'customerPhone',
+          'serviceId', 'serviceSlug', 'serviceName', 'serviceCategory', 'price', 'duration',
+          'durationMinutes', 'date', 'time', 'notes', 'status', 'emailStatus', 'createdAt', 'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'id', 'referenceCode', 'customerId', 'customerName', 'customerEmail', 'customerPhone',
+          'serviceId', 'serviceSlug', 'serviceName', 'serviceCategory', 'price', 'duration',
+          'durationMinutes', 'date', 'time', 'notes', 'status', 'emailStatus', 'createdAt', 'updatedAt'
+        ]) &&
+        data.id is string && data.id.size() >= 1 && data.id.size() <= 128 && data.id.matches('^[a-zA-Z0-9_\\-]+$') &&
+        data.referenceCode is string && data.referenceCode.size() >= 4 && data.referenceCode.size() <= 40 && data.referenceCode.matches('^[a-zA-Z0-9_\\-]+$') &&
+        data.customerId is string && data.customerId.size() >= 1 && data.customerId.size() <= 128 && data.customerId.matches('^[a-zA-Z0-9_\\-]+$') &&
+        (data.customerId == request.auth.uid || isAdmin()) &&
+        data.customerName is string && data.customerName.size() >= 1 && data.customerName.size() <= 100 &&
+        data.customerEmail is string && data.customerEmail.size() >= 3 && data.customerEmail.size() <= 160 &&
+        data.customerPhone is string && data.customerPhone.size() >= 3 && data.customerPhone.size() <= 40 &&
+        data.serviceId is string && data.serviceId.size() >= 1 && data.serviceId.size() <= 128 && data.serviceId.matches('^[a-zA-Z0-9_\\-]+$') &&
+        data.serviceSlug is string && data.serviceSlug.size() >= 1 && data.serviceSlug.size() <= 120 &&
+        data.serviceName is string && data.serviceName.size() >= 1 && data.serviceName.size() <= 120 &&
+        data.serviceCategory is string && data.serviceCategory.size() >= 1 && data.serviceCategory.size() <= 80 &&
+        data.price is number && data.price >= 0 && data.price <= 10000 &&
+        data.duration is string && data.duration.size() >= 1 && data.duration.size() <= 40 &&
+        data.durationMinutes is number && data.durationMinutes >= 15 && data.durationMinutes <= 600 &&
+        data.date is string && data.date.size() >= 8 && data.date.size() <= 20 && data.date.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$') &&
+        data.time is string && data.time.size() >= 3 && data.time.size() <= 20 &&
+        data.notes is string && data.notes.size() >= 0 && data.notes.size() <= 1000 &&
+        data.status is string && data.status.size() <= 20 && (
+          data.status == 'pending' ||
+          data.status == 'confirmed' ||
+          data.status == 'rescheduled' ||
+          data.status == 'cancelled' ||
+          data.status == 'completed'
+        ) &&
+        data.emailStatus is string && data.emailStatus.size() <= 20 && (
+          data.emailStatus == 'sent' ||
+          data.emailStatus == 'queued' ||
+          data.emailStatus == 'failed'
+        ) &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidAvailabilityDay(data) {
+      return data.keys().hasAll(['dayOfWeek', 'dayName', 'isOpen', 'openTime', 'closeTime', 'updatedAt']) &&
+        data.keys().hasOnly(['dayOfWeek', 'dayName', 'isOpen', 'openTime', 'closeTime', 'updatedAt']) &&
+        data.dayOfWeek is number && data.dayOfWeek >= 0 && data.dayOfWeek <= 6 &&
+        data.dayName is string && data.dayName.size() >= 3 && data.dayName.size() <= 20 &&
+        data.isOpen is bool &&
+        data.openTime is string && data.openTime.size() >= 4 && data.openTime.size() <= 10 &&
+        data.closeTime is string && data.closeTime.size() >= 4 && data.closeTime.size() <= 10 &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidAdminRecord(data) {
+      return data.keys().hasAll(['uid', 'email', 'createdAt']) &&
+        data.keys().hasOnly(['uid', 'email', 'createdAt']) &&
+        data.uid is string && data.uid.size() >= 1 && data.uid.size() <= 128 && data.uid.matches('^[a-zA-Z0-9_\\-]+$') &&
+        data.email is string && data.email.size() >= 3 && data.email.size() <= 160 &&
+        data.createdAt is timestamp;
+    }
+
+    // 1. User Public Profile (/users/{userId}) — Owner of record OR role == 'owner'
+    match /users/{userId} {
+      allow get: if isValidId(userId) && (isOwner(userId) || isAdmin());
+      allow list: if isAdmin();
+
+      allow create: if isOwner(userId) &&
+        isValidId(userId) &&
+        isValidUserPublic(incoming()) &&
+        incoming().uid == userId &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time &&
+        (incoming().role == 'customer' || isAdmin());
+
+      allow update: if isVerified() &&
+        isValidUserPublic(incoming()) &&
+        isValidId(userId) &&
+        incoming().uid == existing().uid &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time && (
+          isAdmin() ||
+          (
+            isOwner(userId) &&
+            incoming().role == existing().role &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['name', 'updatedAt'])
+          )
+        );
+
+      allow delete: if isValidId(userId) && isAdmin();
+
+      // 2. Isolated User PII Subcollection (/users/{userId}/private/{docId})
+      match /private/{docId} {
+        allow get: if isValidId(userId) && isValidId(docId) && (isOwner(userId) || isAdmin()) &&
+          get(/databases/$(database)/documents/users/$(userId)).data.uid == userId;
+        allow list: if false;
+
+        allow create: if isOwner(userId) &&
+          isValidId(userId) &&
+          isValidId(docId) &&
+          docId == 'info' &&
+          isValidUserPrivate(incoming()) &&
+          incoming().uid == userId &&
+          incoming().updatedAt == request.time &&
+          get(/databases/$(database)/documents/users/$(userId)).data.uid == userId;
+
+        allow update: if isVerified() &&
+          isValidUserPrivate(incoming()) &&
+          isValidId(userId) &&
+          isValidId(docId) &&
+          docId == 'info' &&
+          incoming().uid == existing().uid &&
+          incoming().updatedAt == request.time &&
+          get(/databases/$(database)/documents/users/$(userId)).data.uid == userId && (
+            isAdmin() ||
+            (
+              isOwner(userId) &&
+              incoming().diff(existing()).affectedKeys().hasOnly(['email', 'phone', 'notes', 'preferredStylist', 'updatedAt'])
+            )
+          );
+
+        allow delete: if isValidId(userId) && isValidId(docId) && isAdmin();
+      }
+    }
+
+    // 3. Salon Service Catalog (/services/{serviceId})
+    match /services/{serviceId} {
+      allow get: if isValidId(serviceId) && (resource.data.active == true || isAdmin());
+      allow list: if resource.data.active == true || isAdmin();
+
+      allow create: if isAdmin() &&
+        isValidId(serviceId) &&
+        isValidServiceItem(incoming()) &&
+        incoming().id == serviceId &&
+        incoming().updatedAt == request.time;
+
+      allow update: if isVerified() &&
+        isValidServiceItem(incoming()) &&
+        isValidId(serviceId) &&
+        incoming().id == existing().id &&
+        incoming().updatedAt == request.time &&
+        isAdmin();
+
+      allow delete: if isValidId(serviceId) && isAdmin();
+    }
+
+    // 4. Client Bookings (/bookings/{bookingId}) — Owner of record (customerId == request.auth.uid) OR role == 'owner'
+    match /bookings/{bookingId} {
+      allow get: if isValidId(bookingId) && (
+        isAdmin() ||
+        (isVerified() && resource.data.customerId == request.auth.uid)
+      );
+
+      allow list: if isAdmin() || (
+        isVerified() && resource.data.customerId == request.auth.uid
+      );
+
+      allow create: if isVerified() &&
+        isValidId(bookingId) &&
+        isValidBookingRecord(incoming()) &&
+        incoming().id == bookingId &&
+        incoming().customerId == request.auth.uid &&
+        (incoming().status == 'confirmed' || incoming().status == 'pending') &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time &&
+        exists(/databases/$(database)/documents/services/$(incoming().serviceId));
+
+      allow update: if isVerified() &&
+        isValidBookingRecord(incoming()) &&
+        isValidId(bookingId) &&
+        incoming().id == existing().id &&
+        incoming().referenceCode == existing().referenceCode &&
+        incoming().customerId == existing().customerId &&
+        incoming().serviceId == existing().serviceId &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time && (
+          isAdmin() ||
+          (
+            existing().customerId == request.auth.uid &&
+            existing().status != 'completed' &&
+            existing().status != 'cancelled' && (
+              // Action 1: Client Cancel Appointment
+              (
+                incoming().status == 'cancelled' &&
+                incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt'])
+              ) ||
+              // Action 2: Client Reschedule Appointment
+              (
+                incoming().status == 'rescheduled' &&
+                incoming().diff(existing()).affectedKeys().hasOnly(['date', 'time', 'notes', 'status', 'updatedAt'])
+              )
+            )
+          )
+        );
+
+      allow delete: if isValidId(bookingId) && isAdmin();
+    }
+
+    // 5. Weekly Salon Availability (/availability/{dayId})
+    match /availability/{dayId} {
+      allow get: if isValidId(dayId) && resource.data.dayOfWeek >= 0;
+      allow list: if resource.data.dayOfWeek >= 0;
+
+      allow create: if isAdmin() &&
+        isValidId(dayId) &&
+        isValidAvailabilityDay(incoming()) &&
+        incoming().updatedAt == request.time;
+
+      allow update: if isVerified() &&
+        isValidAvailabilityDay(incoming()) &&
+        isValidId(dayId) &&
+        incoming().dayOfWeek == existing().dayOfWeek &&
+        incoming().updatedAt == request.time &&
+        isAdmin();
+
+      allow delete: if isValidId(dayId) && isAdmin();
+    }
+
+    // 6. Admins RBAC Lookup Collection (/admins/{adminId})
+    match /admins/{adminId} {
+      allow get: if isValidId(adminId) && (isOwner(adminId) || isAdmin());
+      allow list: if isAdmin();
+
+      allow create: if isAdmin() &&
+        isValidId(adminId) &&
+        isValidAdminRecord(incoming()) &&
+        incoming().uid == adminId &&
+        incoming().createdAt == request.time;
+
+      allow update: if isVerified() &&
+        isValidAdminRecord(incoming()) &&
+        isValidId(adminId) &&
+        incoming().uid == existing().uid &&
+        incoming().createdAt == existing().createdAt &&
+        isAdmin();
+
+      allow delete: if isValidId(adminId) && isAdmin();
+    }
+  }
+}

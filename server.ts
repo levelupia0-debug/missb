@@ -27,6 +27,17 @@ import {
 const PORT = 3000;
 const SESSION_SECRET = process.env.SESSION_SECRET || 'miss-beauty-atelier-secret-key-2026';
 const LEVELUP_API_URL = process.env.LEVELUP_API_URL || 'https://api.levelup-ecosystem.com';
+const RESEND_API_KEY = process.env.RESEND_API_KEY || '';
+const DEFAULT_SENDER_EMAIL = 'Miss beauty Atelier <studio@levelup-ecosystem.com>';
+
+function getSenderEmail(): string {
+  const raw = (process.env.RESEND_FROM_EMAIL || DEFAULT_SENDER_EMAIL).trim();
+  // Clean any accidental trailing dot before @ (e.g. studio.@levelup-ecosystem.com -> studio@levelup-ecosystem.com)
+  return raw.replace(/\.@/g, '@');
+}
+
+// In-memory store for 6-digit account verification codes (10 min expiry)
+const verificationCodes = new Map<string, { code: string; expiresAt: number }>();
 
 interface StoredUser extends UserProfile {
   passwordHash: string;
@@ -112,6 +123,33 @@ function formatReadableDate(dateStr: string): string {
   }
 }
 
+function buildVerificationCodeEmailHtml(params: {
+  salonName: string;
+  customerName: string;
+  code: string;
+}): string {
+  return `
+    <div style="background-color:#F5F2EB;padding:48px 24px;font-family:'Inter',Helvetica,Arial,sans-serif;color:#2C2A26;">
+      <div style="max-width:540px;margin:0 auto;background-color:#FFFFFF;border:1px solid #D6D1C7;padding:48px;">
+        <div style="text-align:center;border-bottom:1px solid #EBE7DE;padding-bottom:24px;margin-bottom:32px;">
+          <span style="font-size:10px;letter-spacing:0.25em;text-transform:uppercase;color:#A8A29E;display:block;margin-bottom:8px;">Security &amp; Private Membership</span>
+          <h1 style="font-family:'Playfair Display',Georgia,serif;font-size:30px;font-weight:400;margin:0;color:#2C2A26;">${params.salonName}</h1>
+        </div>
+        <p style="font-size:15px;line-height:1.7;color:#5D5A53;margin-bottom:24px;">
+          Bonjour ${params.customerName},<br/><br/>
+          Use the following verification code to confirm your email address and activate your <strong>${params.salonName}</strong> client profile:
+        </p>
+        <div style="background-color:#2C2A26;color:#F5F2EB;padding:28px;text-align:center;margin-bottom:28px;letter-spacing:0.35em;font-family:'Playfair Display',Georgia,serif;font-size:34px;">
+          ${params.code}
+        </div>
+        <p style="font-size:12px;line-height:1.6;color:#A8A29E;text-align:center;margin:0;">
+          This code expires in 10 minutes. If you did not request this verification, you may safely disregard this message.
+        </p>
+      </div>
+    </div>
+  `;
+}
+
 function buildConfirmationEmailHtml(params: {
   salonName: string;
   customerName: string;
@@ -125,41 +163,51 @@ function buildConfirmationEmailHtml(params: {
 }): string {
   return `
     <div style="background-color:#F5F2EB;padding:48px 24px;font-family:'Inter',Helvetica,Arial,sans-serif;color:#2C2A26;">
-      <div style="max-width:560px;margin:0 auto;background-color:#FFFFFF;border:1px solid #D6D1C7;padding:48px;">
-        <div style="text-align:center;border-bottom:1px solid #EBE7DE;padding-bottom:28px;margin-bottom:32px;">
-          <span style="font-size:11px;letter-spacing:0.2em;text-transform:uppercase;color:#A8A29E;display:block;margin-bottom:8px;">Appointment Confirmation</span>
-          <h1 style="font-family:'Playfair Display',Georgia,serif;font-size:32px;font-weight:400;margin:0;color:#2C2A26;">${params.salonName}</h1>
+      <div style="max-width:580px;margin:0 auto;background-color:#FFFFFF;border:1px solid #D6D1C7;padding:0;overflow:hidden;">
+        <div style="background-color:#2C2A26;color:#F5F2EB;padding:36px 40px;text-align:center;">
+          <span style="font-size:10px;letter-spacing:0.28em;text-transform:uppercase;color:#D6D1C7;display:block;margin-bottom:8px;">Official Sanctuary Boarding Pass &amp; Ticket</span>
+          <h1 style="font-family:'Playfair Display',Georgia,serif;font-size:32px;font-weight:400;margin:0;color:#F5F2EB;">${params.salonName}</h1>
         </div>
-        <p style="font-size:15px;line-height:1.7;color:#5D5A53;margin-bottom:24px;">
-          Dear ${params.customerName},<br/><br/>
-          Your reservation at <strong>${params.salonName}</strong> has been confirmed. We look forward to welcoming you into our sanctuary.
-        </p>
-        <div style="background-color:#F5F2EB;padding:24px;border:1px solid #EBE7DE;margin-bottom:32px;">
-          <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #D6D1C7;">
-            <span style="font-size:12px;text-transform:uppercase;letter-spacing:0.12em;color:#A8A29E;">Reference</span>
-            <strong style="font-size:14px;color:#2C2A26;">${params.reference}</strong>
+        <div style="padding:40px;">
+          <p style="font-size:15px;line-height:1.7;color:#5D5A53;margin-top:0;margin-bottom:28px;">
+            Dear ${params.customerName},<br/>
+            Your appointment at <strong>${params.salonName}</strong> is confirmed. Present your ticket code below upon arrival at our sanctuary.
+          </p>
+          <div style="background-color:#F5F2EB;border:1px solid #D6D1C7;padding:24px;text-align:center;margin-bottom:28px;">
+            <span style="font-size:10px;text-transform:uppercase;letter-spacing:0.25em;color:#A8A29E;display:block;margin-bottom:6px;">Reservation Ticket Code</span>
+            <div style="font-family:'Playfair Display',Georgia,serif;font-size:28px;letter-spacing:0.12em;color:#2C2A26;font-weight:600;">
+              ${params.reference}
+            </div>
           </div>
-          <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #D6D1C7;">
-            <span style="font-size:12px;text-transform:uppercase;letter-spacing:0.12em;color:#A8A29E;">Service</span>
-            <span style="font-size:14px;color:#2C2A26;">${params.serviceName} (${params.duration})</span>
+          <div style="background-color:#FAF8F5;padding:24px;border:1px solid #EBE7DE;margin-bottom:28px;">
+            <div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid #EBE7DE;">
+              <span style="font-size:11px;text-transform:uppercase;letter-spacing:0.15em;color:#A8A29E;">Guest</span>
+              <strong style="font-size:14px;color:#2C2A26;">${params.customerName}</strong>
+            </div>
+            <div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid #EBE7DE;">
+              <span style="font-size:11px;text-transform:uppercase;letter-spacing:0.15em;color:#A8A29E;">Ritual / Service</span>
+              <span style="font-size:14px;color:#2C2A26;">${params.serviceName} (${params.duration})</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid #EBE7DE;">
+              <span style="font-size:11px;text-transform:uppercase;letter-spacing:0.15em;color:#A8A29E;">Date</span>
+              <span style="font-size:14px;color:#2C2A26;">${formatReadableDate(params.date)}</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid #EBE7DE;">
+              <span style="font-size:11px;text-transform:uppercase;letter-spacing:0.15em;color:#A8A29E;">Time</span>
+              <span style="font-size:14px;color:#2C2A26;">${params.time}</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid #EBE7DE;">
+              <span style="font-size:11px;text-transform:uppercase;letter-spacing:0.15em;color:#A8A29E;">Tariff</span>
+              <span style="font-size:14px;color:#2C2A26;">$${params.price}</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;padding:10px 0;">
+              <span style="font-size:11px;text-transform:uppercase;letter-spacing:0.15em;color:#A8A29E;">Sanctuary Address</span>
+              <span style="font-size:14px;color:#2C2A26;">${params.address}</span>
+            </div>
           </div>
-          <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #D6D1C7;">
-            <span style="font-size:12px;text-transform:uppercase;letter-spacing:0.12em;color:#A8A29E;">Date</span>
-            <span style="font-size:14px;color:#2C2A26;">${formatReadableDate(params.date)}</span>
-          </div>
-          <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #D6D1C7;">
-            <span style="font-size:12px;text-transform:uppercase;letter-spacing:0.12em;color:#A8A29E;">Time</span>
-            <span style="font-size:14px;color:#2C2A26;">${params.time}</span>
-          </div>
-          <div style="display:flex;justify-content:space-between;padding:8px 0;">
-            <span style="font-size:12px;text-transform:uppercase;letter-spacing:0.12em;color:#A8A29E;">Location</span>
-            <span style="font-size:14px;color:#2C2A26;">${params.address}</span>
-          </div>
-        </div>
-        <div style="text-align:center;">
-          <span style="display:inline-block;background-color:#2C2A26;color:#F5F2EB;padding:14px 32px;font-size:12px;text-transform:uppercase;letter-spacing:0.18em;text-decoration:none;">
-            View Appointment
-          </span>
+          <p style="font-size:11px;color:#A8A29E;text-align:center;text-transform:uppercase;letter-spacing:0.18em;margin:0;">
+            Powered by LevelUp Ecosystem · ${params.salonName}
+          </p>
         </div>
       </div>
     </div>
@@ -194,6 +242,18 @@ function loadDatabase(): DatabaseSchema {
       const raw = fs.readFileSync(DB_FILE, 'utf-8');
       const parsed = JSON.parse(raw) as DatabaseSchema;
       if (parsed && Array.isArray(parsed.services) && parsed.services.length > 0) {
+        parsed.services = parsed.services.map(srv => {
+          const updatedDefault = PRODUCTS.find(p => p.id === srv.id || p.slug === srv.slug);
+          if (updatedDefault) {
+            return {
+              ...srv,
+              imageUrl: updatedDefault.imageUrl,
+              gallery: updatedDefault.gallery,
+              description: updatedDefault.description
+            };
+          }
+          return srv;
+        });
         return parsed;
       }
     } catch (e) {
@@ -438,8 +498,31 @@ async function dispatchLevelUpEmail(payload: {
     sentAt: new Date().toISOString()
   };
 
-  // Optional live webhook dispatch if LEVELUP_API_KEY is configured in production
-  if (process.env.LEVELUP_API_KEY) {
+  // 1. Primary dispatch via Resend REST API when RESEND_API_KEY is configured (e.g. on Vercel)
+  const activeResendKey = process.env.RESEND_API_KEY || RESEND_API_KEY;
+  if (activeResendKey) {
+    try {
+      const resendRes = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${activeResendKey}`
+        },
+        body: JSON.stringify({
+          from: getSenderEmail(),
+          to: [payload.to],
+          subject: `${db.settings.salonName} — Reservation Ticket #${payload.reference}`,
+          html: htmlPreview
+        })
+      });
+      if (!resendRes.ok) {
+        const errBody = await resendRes.text().catch(() => '');
+        console.warn('Resend API warning:', resendRes.status, errBody);
+      }
+    } catch (err: any) {
+      console.warn('Resend API unreachable, logged locally:', err?.message);
+    }
+  } else if (process.env.LEVELUP_API_KEY) {
     try {
       const response = await fetch(`${LEVELUP_API_URL}/v1/email/send`, {
         method: 'POST',
@@ -461,11 +544,8 @@ async function dispatchLevelUpEmail(payload: {
       });
       if (!response.ok) {
         logEntry.status = 'failed';
-        logEntry.error = `Upstream LevelUp API returned HTTP ${response.status}`;
       }
     } catch (err: any) {
-      // Per Requirement 16: If the booking succeeds but the email fails, DO NOT cancel the booking.
-      // Log the email failure and allow retry.
       console.warn('LevelUp Email upstream unreachable, logged locally for retry:', err?.message);
     }
   }
@@ -614,10 +694,74 @@ async function startServer() {
   });
 
   // ============================================================================
-  // AUTHENTICATION ROUTES
+  // AUTHENTICATION ROUTES (With Resend 6-Digit Email Verification Code)
   // ============================================================================
+  app.post('/api/auth/send-verification-code', async (req, res) => {
+    const { name, email } = req.body || {};
+    if (!email) {
+      res.status(400).json({ error: 'Email address is required.' });
+      return;
+    }
+    const normalizedEmail = String(email).trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+      res.status(400).json({ error: 'Please provide a valid email address.' });
+      return;
+    }
+
+    const existing = db.users.find(u => u.email.toLowerCase() === normalizedEmail);
+    if (existing) {
+      res.status(409).json({ error: 'An account with this email already exists. Please sign in.' });
+      return;
+    }
+
+    const code = String(Math.floor(100000 + Math.random() * 900000));
+    verificationCodes.set(normalizedEmail, {
+      code,
+      expiresAt: Date.now() + 10 * 60 * 1000
+    });
+
+    const html = buildVerificationCodeEmailHtml({
+      salonName: db.settings.salonName,
+      customerName: String(name || normalizedEmail.split('@')[0]).trim(),
+      code
+    });
+
+    const activeResendKey = process.env.RESEND_API_KEY || RESEND_API_KEY;
+    let sentViaResend = false;
+    if (activeResendKey) {
+      try {
+        const resendRes = await fetch('https://api.resend.com/emails', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${activeResendKey}`
+          },
+          body: JSON.stringify({
+            from: getSenderEmail(),
+            to: [normalizedEmail],
+            subject: `${code} is your ${db.settings.salonName} verification code`,
+            html
+          })
+        });
+        sentViaResend = resendRes.ok;
+      } catch (e) {
+        console.warn('Resend verification dispatch warning:', e);
+      }
+    }
+
+    res.json({
+      sent: true,
+      sentViaResend,
+      // When RESEND_API_KEY is not yet added in local dev, provide fallback code so registration remains testable
+      fallbackCode: sentViaResend ? undefined : code,
+      message: sentViaResend
+        ? `A 6-digit verification code has been sent to ${normalizedEmail}.`
+        : `Verification code generated for ${normalizedEmail}.`
+    });
+  });
+
   app.post('/api/auth/register', (req, res) => {
-    const { name, email, phone, password, hairTextureNotes } = req.body || {};
+    const { name, email, phone, password, hairTextureNotes, verificationCode } = req.body || {};
     if (!name || !email || !password) {
       res.status(400).json({ error: 'Name, email, and password are required.' });
       return;
@@ -636,6 +780,20 @@ async function startServer() {
     if (existing) {
       res.status(409).json({ error: 'An account with this email already exists. Please sign in.' });
       return;
+    }
+
+    const storedVerification = verificationCodes.get(normalizedEmail);
+    if (storedVerification) {
+      if (Date.now() > storedVerification.expiresAt) {
+        verificationCodes.delete(normalizedEmail);
+        res.status(400).json({ error: 'Verification code has expired. Please request a new code.' });
+        return;
+      }
+      if (!verificationCode || String(verificationCode).trim() !== storedVerification.code) {
+        res.status(400).json({ error: 'Invalid 6-digit verification code. Please check your email.' });
+        return;
+      }
+      verificationCodes.delete(normalizedEmail);
     }
 
     // Security: Never allow public registration to set 'owner' role
@@ -679,6 +837,48 @@ async function startServer() {
       res.status(401).json({ error: 'Invalid email or password.' });
       return;
     }
+
+    const token = createToken(user);
+    res.json({
+      token,
+      user: sanitizeUser(user)
+    });
+  });
+
+  app.post('/api/auth/firebase-sync', (req, res) => {
+    const { uid, email, name, phone } = req.body || {};
+    if (!email || !uid) {
+      res.status(400).json({ error: 'Firebase uid and email are required.' });
+      return;
+    }
+    const normalizedEmail = String(email).trim().toLowerCase();
+    const isAdminEmail =
+      normalizedEmail === 'alsherafael@gmail.com' ||
+      normalizedEmail === 'owner@missbeauty.atelier';
+
+    let user = db.users.find(u => u.email.toLowerCase() === normalizedEmail);
+    if (!user) {
+      user = {
+        id: String(uid).replace(/[^a-zA-Z0-9_\-]/g, '_').slice(0, 128),
+        name: String(name || normalizedEmail.split('@')[0]).trim().slice(0, 100),
+        email: normalizedEmail,
+        phone: String(phone || '').trim().slice(0, 40),
+        role: isAdminEmail ? 'owner' : 'customer',
+        emailVerified: true,
+        createdAt: new Date().toISOString(),
+        passwordHash: hashPassword(`firebase_${uid}`)
+      };
+      db.users.push(user);
+    } else if (isAdminEmail && user.role !== 'owner') {
+      user.role = 'owner';
+    }
+
+    db.bookings.forEach(b => {
+      if (b.customerEmail.toLowerCase() === normalizedEmail) {
+        b.customerId = user!.id;
+      }
+    });
+    saveDatabase();
 
     const token = createToken(user);
     res.json({

@@ -8,7 +8,9 @@ import { UserProfile } from '../types';
 import {
   loginUser,
   registerUser,
-  resetUserPassword
+  resetUserPassword,
+  loginWithGoogleFirebase,
+  sendVerificationCode
 } from '../services/salonApi';
 
 interface AuthViewProps {
@@ -23,11 +25,13 @@ const AuthView: React.FC<AuthViewProps> = ({
   onBack
 }) => {
   const [mode, setMode] = useState<'login' | 'register' | 'reset'>(initialMode);
+  const [registerStep, setRegisterStep] = useState<'form' | 'verify'>('form');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [hairTextureNotes, setHairTextureNotes] = useState('');
+  const [verificationCode, setVerificationCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
@@ -43,14 +47,30 @@ const AuthView: React.FC<AuthViewProps> = ({
         const res = await loginUser(email, password);
         onSuccess(res.user);
       } else if (mode === 'register') {
-        const res = await registerUser({
-          name,
-          email,
-          phone,
-          password,
-          hairTextureNotes
-        });
-        onSuccess(res.user);
+        if (registerStep === 'form') {
+          const codeRes = await sendVerificationCode({ name, email });
+          setRegisterStep('verify');
+          if (codeRes.fallbackCode) {
+            setVerificationCode(codeRes.fallbackCode);
+            setStatusMessage(
+              `Verification code sent to ${email}. (Preview mode auto-filled: ${codeRes.fallbackCode} — add RESEND_API_KEY on Vercel for live Gmail delivery)`
+            );
+          } else {
+            setStatusMessage(
+              `A 6-digit verification code has been sent via Resend to ${email}. Please enter it below to continue.`
+            );
+          }
+        } else {
+          const res = await registerUser({
+            name,
+            email,
+            phone,
+            password,
+            hairTextureNotes,
+            verificationCode
+          });
+          onSuccess(res.user);
+        }
       } else if (mode === 'reset') {
         const res = await resetUserPassword(email, password);
         setStatusMessage(res.message);
@@ -58,6 +78,20 @@ const AuthView: React.FC<AuthViewProps> = ({
       }
     } catch (err: any) {
       setError(err.message || 'Authentication failed.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGoogleSignIn = async () => {
+    setError(null);
+    setStatusMessage(null);
+    setLoading(true);
+    try {
+      const res = await loginWithGoogleFirebase();
+      onSuccess(res.user);
+    } catch (err: any) {
+      setError(err.message || 'Google Sign-In failed.');
     } finally {
       setLoading(false);
     }
@@ -103,19 +137,25 @@ const AuthView: React.FC<AuthViewProps> = ({
         <div className="bg-white/75 border border-[#D6D1C7] p-8 md:p-14">
           <span className="block text-xs uppercase tracking-[0.2em] text-[#A8A29E] mb-3">
             {mode === 'login' && 'Private Access'}
-            {mode === 'register' && 'Guest Membership'}
+            {mode === 'register' &&
+              (registerStep === 'verify' ? 'Email Verification' : 'Guest Membership')}
             {mode === 'reset' && 'Credential Recovery'}
           </span>
           <h1 className="text-3xl md:text-4xl font-serif text-[#2C2A26] mb-3">
             {mode === 'login' && 'Sign in to your account'}
-            {mode === 'register' && 'Create your client profile'}
+            {mode === 'register' &&
+              (registerStep === 'verify'
+                ? 'Enter your 6-digit code'
+                : 'Create your client profile')}
             {mode === 'reset' && 'Reset your password'}
           </h1>
           <p className="text-sm text-[#5D5A53] font-light mb-8">
             {mode === 'login' &&
               'Access your upcoming reservations, ritual history, or salon management suite.'}
             {mode === 'register' &&
-              'Join Miss beauty to book appointments, store texture preferences, and manage reservations.'}
+              (registerStep === 'verify'
+                ? `We dispatched a 6-digit verification code to ${email}. Enter it below to activate your account.`
+                : 'Join Miss beauty to book appointments, store texture preferences, and manage reservations.')}
             {mode === 'reset' &&
               'Enter your registered email address and choose a new password.'}
           </p>
@@ -132,79 +172,163 @@ const AuthView: React.FC<AuthViewProps> = ({
             </div>
           )}
 
+          {/* Google Firebase Sign-In Button */}
+          {mode !== 'reset' && registerStep === 'form' && (
+            <div className="mb-8">
+              <button
+                type="button"
+                onClick={handleGoogleSignIn}
+                disabled={loading}
+                className="w-full py-4 px-6 border border-[#2C2A26] bg-[#F5F2EB] text-[#2C2A26] hover:bg-[#2C2A26] hover:text-[#F5F2EB] transition-colors flex items-center justify-center gap-3 text-xs uppercase tracking-widest font-medium disabled:opacity-50"
+              >
+                <svg className="w-4 h-4" viewBox="0 0 24 24" aria-hidden="true">
+                  <path
+                    fill="currentColor"
+                    d="M21.35 11.1h-9.17v2.73h6.51c-.33 3.81-3.5 5.44-6.5 5.44C8.36 19.27 5 15.65 5 12c0-3.65 3.36-7.27 7.2-7.27c3.09 0 4.9 1.97 4.9 1.97L19 4.72S16.56 2 12.1 2C6.42 2 2.03 6.8 2.03 12c0 5.05 4.13 10 10.22 10c5.35 0 9.25-3.67 9.25-9.09c0-1.15-.15-1.81-.15-1.81Z"
+                  />
+                </svg>
+                Continue with Google
+              </button>
+
+              <div className="relative flex py-5 items-center">
+                <div className="flex-grow border-t border-[#D6D1C7]"></div>
+                <span className="flex-shrink mx-4 text-[11px] uppercase tracking-widest text-[#A8A29E]">
+                  Or with email
+                </span>
+                <div className="flex-grow border-t border-[#D6D1C7]"></div>
+              </div>
+            </div>
+          )}
+
           <form onSubmit={handleSubmit} className="space-y-6">
-            {mode === 'register' && (
-              <div>
-                <label className="block text-xs uppercase tracking-widest text-[#5D5A53] mb-2">
-                  Full Name *
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="Sarah Jenkins"
-                  className="w-full bg-transparent border-b border-[#D6D1C7] py-3 text-[#2C2A26] placeholder-[#A8A29E] outline-none focus:border-[#2C2A26]"
-                />
+            {mode === 'register' && registerStep === 'verify' ? (
+              <div className="space-y-6">
+                <div>
+                  <label className="block text-xs uppercase tracking-widest text-[#5D5A53] mb-3">
+                    6-Digit Verification Code *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    maxLength={6}
+                    value={verificationCode}
+                    onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, ''))}
+                    placeholder="000000"
+                    className="w-full bg-[#F5F2EB] border border-[#2C2A26] py-4 px-6 text-center font-serif text-3xl tracking-[0.4em] text-[#2C2A26] outline-none"
+                  />
+                </div>
+                <div className="flex items-center justify-between text-xs uppercase tracking-widest text-[#5D5A53]">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setRegisterStep('form');
+                      setStatusMessage(null);
+                      setError(null);
+                    }}
+                    className="underline underline-offset-4 hover:text-[#2C2A26]"
+                  >
+                    ← Edit email address
+                  </button>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      setError(null);
+                      try {
+                        const codeRes = await sendVerificationCode({ name, email });
+                        if (codeRes.fallbackCode) {
+                          setVerificationCode(codeRes.fallbackCode);
+                        }
+                        setStatusMessage(`A new verification code was sent to ${email}.`);
+                      } catch (err: any) {
+                        setError(err.message);
+                      }
+                    }}
+                    className="underline underline-offset-4 hover:text-[#2C2A26]"
+                  >
+                    Resend code
+                  </button>
+                </div>
               </div>
-            )}
+            ) : (
+              <>
+                {mode === 'register' && (
+                  <div>
+                    <label className="block text-xs uppercase tracking-widest text-[#5D5A53] mb-2">
+                      Full Name *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      maxLength={100}
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      placeholder="Sarah Jenkins"
+                      className="w-full bg-transparent border-b border-[#D6D1C7] py-3 text-[#2C2A26] placeholder-[#A8A29E] outline-none focus:border-[#2C2A26]"
+                    />
+                  </div>
+                )}
 
-            <div>
-              <label className="block text-xs uppercase tracking-widest text-[#5D5A53] mb-2">
-                Email Address *
-              </label>
-              <input
-                type="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="sarah@example.com"
-                className="w-full bg-transparent border-b border-[#D6D1C7] py-3 text-[#2C2A26] placeholder-[#A8A29E] outline-none focus:border-[#2C2A26]"
-              />
-            </div>
+                <div>
+                  <label className="block text-xs uppercase tracking-widest text-[#5D5A53] mb-2">
+                    Email Address *
+                  </label>
+                  <input
+                    type="email"
+                    required
+                    maxLength={160}
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="sarah@example.com"
+                    className="w-full bg-transparent border-b border-[#D6D1C7] py-3 text-[#2C2A26] placeholder-[#A8A29E] outline-none focus:border-[#2C2A26]"
+                  />
+                </div>
 
-            {mode === 'register' && (
-              <div>
-                <label className="block text-xs uppercase tracking-widest text-[#5D5A53] mb-2">
-                  Phone Number
-                </label>
-                <input
-                  type="tel"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  placeholder="+1 (212) 555-0194"
-                  className="w-full bg-transparent border-b border-[#D6D1C7] py-3 text-[#2C2A26] placeholder-[#A8A29E] outline-none focus:border-[#2C2A26]"
-                />
-              </div>
-            )}
+                {mode === 'register' && (
+                  <div>
+                    <label className="block text-xs uppercase tracking-widest text-[#5D5A53] mb-2">
+                      Phone Number
+                    </label>
+                    <input
+                      type="tel"
+                      maxLength={40}
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      placeholder="+1 (212) 555-0194"
+                      className="w-full bg-transparent border-b border-[#D6D1C7] py-3 text-[#2C2A26] placeholder-[#A8A29E] outline-none focus:border-[#2C2A26]"
+                    />
+                  </div>
+                )}
 
-            <div>
-              <label className="block text-xs uppercase tracking-widest text-[#5D5A53] mb-2">
-                {mode === 'reset' ? 'New Password (min. 6 characters) *' : 'Password *'}
-              </label>
-              <input
-                type="password"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                className="w-full bg-transparent border-b border-[#D6D1C7] py-3 text-[#2C2A26] placeholder-[#A8A29E] outline-none focus:border-[#2C2A26]"
-              />
-            </div>
+                <div>
+                  <label className="block text-xs uppercase tracking-widest text-[#5D5A53] mb-2">
+                    {mode === 'reset' ? 'New Password (min. 6 characters) *' : 'Password *'}
+                  </label>
+                  <input
+                    type="password"
+                    required
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="••••••••"
+                    className="w-full bg-transparent border-b border-[#D6D1C7] py-3 text-[#2C2A26] placeholder-[#A8A29E] outline-none focus:border-[#2C2A26]"
+                  />
+                </div>
 
-            {mode === 'register' && (
-              <div>
-                <label className="block text-xs uppercase tracking-widest text-[#5D5A53] mb-2">
-                  Hair Texture & Ritual Notes (Optional)
-                </label>
-                <input
-                  type="text"
-                  value={hairTextureNotes}
-                  onChange={(e) => setHairTextureNotes(e.target.value)}
-                  placeholder="e.g. 3C curls, prefers tension-free knotless braids"
-                  className="w-full bg-transparent border-b border-[#D6D1C7] py-3 text-[#2C2A26] placeholder-[#A8A29E] outline-none focus:border-[#2C2A26]"
-                />
-              </div>
+                {mode === 'register' && (
+                  <div>
+                    <label className="block text-xs uppercase tracking-widest text-[#5D5A53] mb-2">
+                      Hair Texture & Ritual Notes (Optional)
+                    </label>
+                    <input
+                      type="text"
+                      maxLength={1000}
+                      value={hairTextureNotes}
+                      onChange={(e) => setHairTextureNotes(e.target.value)}
+                      placeholder="e.g. 3C curls, prefers tension-free knotless braids"
+                      className="w-full bg-transparent border-b border-[#D6D1C7] py-3 text-[#2C2A26] placeholder-[#A8A29E] outline-none focus:border-[#2C2A26]"
+                    />
+                  </div>
+                )}
+              </>
             )}
 
             <button
@@ -217,7 +341,9 @@ const AuthView: React.FC<AuthViewProps> = ({
                 : mode === 'login'
                 ? 'Sign In'
                 : mode === 'register'
-                ? 'Create Account'
+                ? registerStep === 'verify'
+                  ? 'Verify Code & Create Account'
+                  : 'Send Verification Code →'
                 : 'Update Password'}
             </button>
           </form>
@@ -230,6 +356,8 @@ const AuthView: React.FC<AuthViewProps> = ({
                   type="button"
                   onClick={() => {
                     setError(null);
+                    setStatusMessage(null);
+                    setRegisterStep('form');
                     setMode('register');
                   }}
                   className="hover:text-[#2C2A26] underline underline-offset-4"
@@ -240,6 +368,7 @@ const AuthView: React.FC<AuthViewProps> = ({
                   type="button"
                   onClick={() => {
                     setError(null);
+                    setStatusMessage(null);
                     setMode('reset');
                   }}
                   className="hover:text-[#2C2A26] underline underline-offset-4"
@@ -252,6 +381,8 @@ const AuthView: React.FC<AuthViewProps> = ({
                 type="button"
                 onClick={() => {
                   setError(null);
+                  setStatusMessage(null);
+                  setRegisterStep('form');
                   setMode('login');
                 }}
                 className="hover:text-[#2C2A26] underline underline-offset-4"

@@ -12,11 +12,25 @@ import {
   DayAvailability,
   BusinessSettings
 } from '../types';
+import {
+  signInWithGoogleFirebase,
+  signOutFirebase,
+  syncFirebaseUserToFirestore,
+  syncBookingCreationToFirestore,
+  syncBookingUpdateToFirestore,
+  syncServiceToFirestore,
+  syncAvailabilityToFirestore,
+  seedCatalogToFirestoreIfAdmin
+} from '../firebase';
+import { PRODUCTS } from '../constants';
 
 let authTokenInMemory: string | null = null;
 
 export function setAuthToken(token: string | null) {
   authTokenInMemory = token;
+  if (!token) {
+    signOutFirebase().catch(() => {});
+  }
 }
 
 export function getAuthToken(): string | null {
@@ -31,6 +45,32 @@ function getHeaders(): HeadersInit {
     headers['Authorization'] = `Bearer ${authTokenInMemory}`;
   }
   return headers;
+}
+
+export async function loginWithGoogleFirebase(): Promise<{
+  token: string;
+  user: UserProfile;
+}> {
+  const fbUser = await signInWithGoogleFirebase();
+  await syncFirebaseUserToFirestore({
+    name: fbUser.displayName || undefined
+  });
+  await seedCatalogToFirestoreIfAdmin(PRODUCTS);
+
+  const res = await fetch('/api/auth/firebase-sync', {
+    method: 'POST',
+    headers: getHeaders(),
+    body: JSON.stringify({
+      uid: fbUser.uid,
+      email: fbUser.email,
+      name: fbUser.displayName,
+      phone: fbUser.phoneNumber || ''
+    })
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Firebase sign-in sync failed.');
+  setAuthToken(data.token);
+  return data;
 }
 
 export async function fetchServicesCatalog(): Promise<{
@@ -92,10 +132,16 @@ export async function createAppointment(payload: {
   if (data.token) {
     setAuthToken(data.token);
   }
+  if (data.booking) {
+    await syncBookingCreationToFirestore(data.booking).catch(() => {});
+  }
   return data;
 }
 
-export async function loginUser(email: string, password: string): Promise<{
+export async function loginUser(
+  email: string,
+  password: string
+): Promise<{
   token: string;
   user: UserProfile;
 }> {
@@ -110,12 +156,32 @@ export async function loginUser(email: string, password: string): Promise<{
   return data;
 }
 
+export async function sendVerificationCode(payload: {
+  name: string;
+  email: string;
+}): Promise<{
+  sent: boolean;
+  sentViaResend: boolean;
+  fallbackCode?: string;
+  message: string;
+}> {
+  const res = await fetch('/api/auth/send-verification-code', {
+    method: 'POST',
+    headers: getHeaders(),
+    body: JSON.stringify(payload)
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Unable to send verification code.');
+  return data;
+}
+
 export async function registerUser(payload: {
   name: string;
   email: string;
   phone: string;
   password: string;
   hairTextureNotes?: string;
+  verificationCode?: string;
 }): Promise<{
   token: string;
   user: UserProfile;
@@ -131,7 +197,10 @@ export async function registerUser(payload: {
   return data;
 }
 
-export async function resetUserPassword(email: string, newPassword: string): Promise<{ message: string }> {
+export async function resetUserPassword(
+  email: string,
+  newPassword: string
+): Promise<{ message: string }> {
   const res = await fetch('/api/auth/reset-password', {
     method: 'POST',
     headers: getHeaders(),
@@ -164,6 +233,11 @@ export async function updateCustomerProfile(payload: {
   });
   const data = await res.json();
   if (!res.ok) throw new Error(data.error || 'Unable to update profile.');
+  await syncFirebaseUserToFirestore({
+    name: payload.name,
+    phone: payload.phone,
+    notes: payload.hairTextureNotes
+  }).catch(() => {});
   return data;
 }
 
@@ -183,6 +257,11 @@ export async function updateCustomerBooking(
   });
   const data = await res.json();
   if (!res.ok) throw new Error(data.error || 'Unable to update appointment.');
+  await syncBookingUpdateToFirestore(bookingId, payload.action, {
+    date: payload.appointmentDate,
+    time: payload.startTime,
+    notes: payload.notes
+  }).catch(() => {});
   return data;
 }
 
@@ -235,7 +314,9 @@ export async function retryBookingConfirmationEmail(bookingId: string): Promise<
   return data;
 }
 
-export async function createSalonService(payload: Partial<Product>): Promise<{ service: Product }> {
+export async function createSalonService(
+  payload: Partial<Product>
+): Promise<{ service: Product }> {
   const res = await fetch('/api/dashboard/services', {
     method: 'POST',
     headers: getHeaders(),
@@ -243,6 +324,9 @@ export async function createSalonService(payload: Partial<Product>): Promise<{ s
   });
   const data = await res.json();
   if (!res.ok) throw new Error(data.error || 'Unable to create service.');
+  if (data.service) {
+    await syncServiceToFirestore(data.service).catch(() => {});
+  }
   return data;
 }
 
@@ -257,6 +341,9 @@ export async function updateSalonService(
   });
   const data = await res.json();
   if (!res.ok) throw new Error(data.error || 'Unable to update service.');
+  if (data.service) {
+    await syncServiceToFirestore(data.service).catch(() => {});
+  }
   return data;
 }
 
@@ -270,6 +357,9 @@ export async function updateSalonAvailability(
   });
   const data = await res.json();
   if (!res.ok) throw new Error(data.error || 'Unable to update availability.');
+  if (data.availability) {
+    await syncAvailabilityToFirestore(data.availability).catch(() => {});
+  }
   return data;
 }
 

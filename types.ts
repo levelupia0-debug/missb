@@ -28,13 +28,33 @@ export interface Product {
   active?: boolean;
 }
 
-export type SalonService = Product;
+export interface JournalArticle {
+  id: number;
+  slug?: string;
+  title: string;
+  date: string;
+  excerpt: string;
+  image: string;
+  content: React.ReactNode;
+}
 
-export type BookingStatus = 'Pending' | 'Confirmed' | 'Completed' | 'Cancelled';
+export interface ChatMessage {
+  role: 'user' | 'model';
+  text: string;
+  timestamp: number;
+}
+
+export type BookingStatus =
+  | 'Pending'
+  | 'Confirmed'
+  | 'Completed'
+  | 'Cancelled'
+  | 'Rescheduled';
 
 export interface Booking {
   id: string;
   reference: string;
+  referenceCode?: string;
   customerId: string;
   customerName: string;
   customerEmail: string;
@@ -42,16 +62,17 @@ export interface Booking {
   serviceId: string;
   serviceSlug: string;
   serviceName: string;
-  serviceCategory: string;
-  price: number;
+  serviceCategory: ServiceCategory;
   duration: string;
   durationMinutes: number;
+  price: number;
   appointmentDate: string; // YYYY-MM-DD
-  startTime: string;       // e.g. "10:00 AM"
-  endTime: string;         // e.g. "12:30 PM"
-  status: BookingStatus;
+  startTime: string; // e.g. "10:00 AM"
+  endTime: string; // e.g. "11:30 AM"
   notes?: string;
+  status: BookingStatus;
   emailSent: boolean;
+  emailStatus?: 'sent' | 'queued' | 'failed';
   emailLogId?: string;
   createdAt: string;
   updatedAt: string;
@@ -71,24 +92,24 @@ export interface UserProfile {
 export interface EmailLog {
   id: string;
   bookingId: string;
-  reference: string;
-  to: string;
+  bookingReference: string;
+  recipientEmail: string;
+  recipientName: string;
   subject: string;
-  template: string;
-  status: 'sent' | 'failed';
+  status: 'sent' | 'queued_fallback' | 'failed';
   provider: string;
-  htmlPreview: string;
-  error?: string;
+  endpointUrl: string;
   sentAt: string;
+  htmlPreview: string;
 }
 
 export interface DayAvailability {
-  dayOfWeek: number; // 0 = Sun ... 6 = Sat
+  dayOfWeek: number; // 0 = Sunday .. 6 = Saturday
   dayName: string;
   isOpen: boolean;
-  openTime: string;  // "09:30"
-  closeTime: string; // "19:30"
-  slots: string[];   // ["10:00 AM", "11:30 AM", "2:00 PM", "4:30 PM"]
+  openTime: string;
+  closeTime: string;
+  slots: string[];
 }
 
 export interface BusinessSettings {
@@ -103,36 +124,26 @@ export interface BusinessSettings {
   levelUpApiUrl: string;
 }
 
-export interface JournalArticle {
-  id: number;
-  slug: string;
-  title: string;
-  date: string;
-  excerpt: string;
-  image: string;
-  content: React.ReactNode;
-}
-
-export interface ChatMessage {
-  role: 'user' | 'model';
-  text: string;
-  timestamp: number;
-}
-
-export enum LoadingState {
-  IDLE = 'IDLE',
-  LOADING = 'LOADING',
-  ERROR = 'ERROR',
-  SUCCESS = 'SUCCESS'
-}
-
 export type ViewState =
   | { type: 'home' }
   | { type: 'services' }
+  | { type: 'about' }
+  | { type: 'journal_list' }
+  | { type: 'contact' }
   | { type: 'product'; product: Product }
   | { type: 'journal'; article: JournalArticle }
   | { type: 'checkout'; initialService?: Product; rescheduleBooking?: Booking }
-  | { type: 'login'; redirectTo?: 'checkout' | 'account' | 'dashboard' }
-  | { type: 'register'; redirectTo?: 'checkout' | 'account' }
+  | { type: 'login'; redirectTo?: string }
+  | { type: 'register'; redirectTo?: string }
   | { type: 'account'; tab?: 'overview' | 'bookings' | 'profile'; highlightBookingId?: string }
-  | { type: 'dashboard'; section?: 'overview' | 'bookings' | 'customers' | 'services' | 'availability' | 'emails' | 'settings' };
+  | {
+      type: 'dashboard';
+      section?:
+        | 'overview'
+        | 'bookings'
+        | 'customers'
+        | 'services'
+        | 'availability'
+        | 'emails'
+        | 'settings';
+    };

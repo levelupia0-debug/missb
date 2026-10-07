@@ -421,16 +421,8 @@ const AccountView: React.FC<AccountViewProps> = ({
                             onClick={() => setSelectedBookingDetail(bk)}
                             className="px-5 py-3 bg-[#2C2A26] text-[#F5F2EB] text-xs uppercase tracking-widest hover:bg-[#433E38] transition-colors"
                           >
-                            View appointment
+                            View & Print Ticket
                           </button>
-                          {matchingEmail && (
-                            <button
-                              onClick={() => setSelectedEmailPreview(matchingEmail)}
-                              className="px-5 py-3 border border-[#D6D1C7] text-[#2C2A26] text-xs uppercase tracking-widest hover:border-[#2C2A26] transition-colors"
-                            >
-                              Confirmation Email
-                            </button>
-                          )}
                           {bk.status !== 'Cancelled' && bk.status !== 'Completed' && (
                             <>
                               <button
@@ -576,28 +568,36 @@ const AccountView: React.FC<AccountViewProps> = ({
                 )}
               </div>
 
-              <div className="pt-6 border-t border-[#D6D1C7] flex flex-wrap justify-between gap-4">
-                {selectedBookingDetail.status !== 'Cancelled' &&
-                  selectedBookingDetail.status !== 'Completed' && (
-                    <div className="flex gap-3">
-                      <button
-                        onClick={() => {
-                          const bk = selectedBookingDetail;
-                          setSelectedBookingDetail(null);
-                          onRescheduleBooking(bk);
-                        }}
-                        className="px-5 py-3 bg-[#2C2A26] text-[#F5F2EB] text-xs uppercase tracking-widest"
-                      >
-                        Reschedule
-                      </button>
-                      <button
-                        onClick={() => handleCancelAppointment(selectedBookingDetail.id)}
-                        className="px-5 py-3 border border-[#D6D1C7] text-xs uppercase tracking-widest text-[#2C2A26]"
-                      >
-                        Cancel Appointment
-                      </button>
-                    </div>
-                  )}
+              <div className="pt-6 border-t border-[#D6D1C7] flex flex-wrap justify-between gap-4 print:hidden">
+                <div className="flex flex-wrap gap-3">
+                  <button
+                    onClick={() => window.print()}
+                    className="px-5 py-3 bg-[#2C2A26] text-[#F5F2EB] text-xs uppercase tracking-widest hover:bg-[#433E38]"
+                  >
+                    Print Ticket
+                  </button>
+                  {selectedBookingDetail.status !== 'Cancelled' &&
+                    selectedBookingDetail.status !== 'Completed' && (
+                      <>
+                        <button
+                          onClick={() => {
+                            const bk = selectedBookingDetail;
+                            setSelectedBookingDetail(null);
+                            onRescheduleBooking(bk);
+                          }}
+                          className="px-5 py-3 border border-[#2C2A26] text-[#2C2A26] text-xs uppercase tracking-widest"
+                        >
+                          Reschedule
+                        </button>
+                        <button
+                          onClick={() => handleCancelAppointment(selectedBookingDetail.id)}
+                          className="px-5 py-3 border border-[#D6D1C7] text-xs uppercase tracking-widest text-[#2C2A26]"
+                        >
+                          Cancel
+                        </button>
+                      </>
+                    )}
+                </div>
                 <button
                   onClick={() => setSelectedBookingDetail(null)}
                   className="px-5 py-3 text-xs uppercase tracking-widest text-[#5D5A53] hover:text-[#2C2A26]"
@@ -605,31 +605,6 @@ const AccountView: React.FC<AccountViewProps> = ({
                   Done
                 </button>
               </div>
-            </div>
-          </div>
-        )}
-
-        {/* CONFIRMATION EMAIL PREVIEW MODAL */}
-        {selectedEmailPreview && (
-          <div className="fixed inset-0 z-50 bg-[#2C2A26]/50 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className="bg-[#F5F2EB] border border-[#D6D1C7] max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6 md:p-8 shadow-2xl">
-              <div className="flex justify-between items-center pb-4 mb-6 border-b border-[#D6D1C7]">
-                <div>
-                  <span className="block text-[11px] uppercase tracking-widest text-[#A8A29E]">
-                    {selectedEmailPreview.provider}
-                  </span>
-                  <h3 className="font-serif text-xl text-[#2C2A26]">
-                    {selectedEmailPreview.subject}
-                  </h3>
-                </div>
-                <button
-                  onClick={() => setSelectedEmailPreview(null)}
-                  className="text-xs uppercase tracking-widest text-[#5D5A53] hover:text-[#2C2A26]"
-                >
-                  Close
-                </button>
-              </div>
-              <div dangerouslySetInnerHTML={{ __html: selectedEmailPreview.htmlPreview }} />
             </div>
           </div>
         )}
