@@ -264,6 +264,7 @@ export async function sendVerificationCode(payload: {
   sentViaResend: boolean;
   verificationToken?: string;
   fallbackCode?: string;
+  resendNotice?: string;
   message: string;
 }> {
   const res = await fetch('/api/auth/send-verification-code', {

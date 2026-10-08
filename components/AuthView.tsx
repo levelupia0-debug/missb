@@ -53,16 +53,12 @@ const AuthView: React.FC<AuthViewProps> = ({
           const codeRes = await sendVerificationCode({ name, email });
           setVerificationToken(codeRes.verificationToken);
           setRegisterStep('verify');
-          if (codeRes.fallbackCode) {
-            setVerificationCode(codeRes.fallbackCode);
-            setStatusMessage(
-              `A 6-digit verification code has been generated for ${email}. Please confirm the code below to activate your account.`
-            );
-          } else {
-            setStatusMessage(
-              `A 6-digit verification code has been sent to ${email}. Please check your inbox and enter it below to continue.`
-            );
+          if (!codeRes.sentViaResend && codeRes.resendNotice) {
+            console.warn('[Resend Email Diagnostic]:', codeRes.resendNotice);
           }
+          setStatusMessage(
+            `A 6-digit verification code has been sent to ${email}. Please check your inbox (and spam folder) and enter it below to continue.`
+          );
         } else {
           const res = await registerUser({
             name,
@@ -194,8 +190,8 @@ const AuthView: React.FC<AuthViewProps> = ({
                       try {
                         const codeRes = await sendVerificationCode({ name, email });
                         setVerificationToken(codeRes.verificationToken);
-                        if (codeRes.fallbackCode) {
-                          setVerificationCode(codeRes.fallbackCode);
+                        if (!codeRes.sentViaResend && codeRes.resendNotice) {
+                          console.warn('[Resend Email Diagnostic]:', codeRes.resendNotice);
                         }
                         setStatusMessage(`A new verification code was sent to ${email}.`);
                       } catch (err: any) {

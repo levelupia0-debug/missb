@@ -2,7 +2,7 @@
   "rewrites": [
     {
       "source": "/api/(.*)",
-      "destination": "/api/index.ts"
+      "destination": "/api/index.js?__path=$1"
     },
     {
       "source": "/((?!api/|images/|assets/|portrait-hero\\.png|favicon\\.ico).*)",
