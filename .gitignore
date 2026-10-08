@@ -12,6 +12,17 @@ dist
 dist-ssr
 *.local
 
+# Environment variables & secrets (Never commit to GitHub)
+.env
+.env.*
+!.env.example
+
+# Firebase & Local Runtime Data (Prevent GitHub Secret Scanning alerts)
+firebase-applet-config.json
+firebase_applet_config.xml
+data/salon-db.json
+DRAFT_firestore.rules
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

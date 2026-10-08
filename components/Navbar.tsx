@@ -29,11 +29,9 @@ interface NavbarProps {
 }
 
 const Navbar: React.FC<NavbarProps> = ({
-  onNavClick,
   cartCount,
   onOpenCart,
   currentUser,
-  onNavigateRoute,
   activeRoute = 'home',
   forceDarkText = false
 }) => {
@@ -47,16 +45,6 @@ const Navbar: React.FC<NavbarProps> = ({
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
-
-  const handleRouteClick = (e: React.MouseEvent<HTMLAnchorElement>, route: NavRoute) => {
-    e.preventDefault();
-    setMobileMenuOpen(false);
-    if (onNavigateRoute) {
-      onNavigateRoute(route);
-    } else {
-      onNavClick(e, route);
-    }
-  };
 
   const handleCartClick = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -88,13 +76,12 @@ const Navbar: React.FC<NavbarProps> = ({
           {/* Zone 1: Brand Title */}
           <a
             href="/"
-            onClick={(e) => handleRouteClick(e, 'home')}
             className={`text-3xl font-serif font-medium tracking-tight z-50 relative transition-colors duration-500 whitespace-nowrap ${textColorClass}`}
           >
             {BRAND_NAME}
           </a>
 
-          {/* Zone 2: Center Links - Desktop (Each opens its own dedicated page) */}
+          {/* Zone 2: Center Links - Desktop (Real browser page loads) */}
           <div
             className={`hidden md:flex items-center gap-10 text-sm font-medium tracking-widest uppercase transition-colors duration-500 ${textColorClass}`}
           >
@@ -104,7 +91,6 @@ const Navbar: React.FC<NavbarProps> = ({
                 <a
                   key={item.route}
                   href={item.href}
-                  onClick={(e) => handleRouteClick(e, item.route)}
                   className={`transition-opacity whitespace-nowrap pb-1 ${
                     isActive
                       ? 'border-b border-[#2C2A26] opacity-100'
@@ -122,27 +108,19 @@ const Navbar: React.FC<NavbarProps> = ({
             className={`flex items-center gap-6 z-50 relative transition-colors duration-500 ${textColorClass}`}
           >
             {currentUser ? (
-              <button
-                onClick={() => {
-                  setMobileMenuOpen(false);
-                  if (onNavigateRoute) {
-                    onNavigateRoute(currentUser.role === 'owner' ? 'dashboard' : 'account');
-                  }
-                }}
+              <a
+                href={currentUser.role === 'owner' ? '/dashboard' : '/account'}
                 className="text-xs font-medium uppercase tracking-widest hover:opacity-60 transition-opacity hidden sm:inline-block whitespace-nowrap"
               >
                 {currentUser.role === 'owner' ? 'Salon Dashboard' : 'My Account'}
-              </button>
+              </a>
             ) : (
-              <button
-                onClick={() => {
-                  setMobileMenuOpen(false);
-                  if (onNavigateRoute) onNavigateRoute('login');
-                }}
+              <a
+                href="/login"
                 className="text-xs font-medium uppercase tracking-widest hover:opacity-60 transition-opacity hidden sm:inline-block whitespace-nowrap"
               >
                 Sign In
-              </button>
+              </a>
             )}
 
             <button
@@ -203,26 +181,20 @@ const Navbar: React.FC<NavbarProps> = ({
             <a
               key={item.route}
               href={item.href}
-              onClick={(e) => handleRouteClick(e, item.route)}
               className="hover:opacity-60 transition-opacity"
             >
               {item.label}
             </a>
           ))}
 
-          <button
-            onClick={() => {
-              setMobileMenuOpen(false);
-              if (onNavigateRoute) {
-                onNavigateRoute(
-                  currentUser
-                    ? currentUser.role === 'owner'
-                      ? 'dashboard'
-                      : 'account'
-                    : 'login'
-                );
-              }
-            }}
+          <a
+            href={
+              currentUser
+                ? currentUser.role === 'owner'
+                  ? '/dashboard'
+                  : '/account'
+                : '/login'
+            }
             className="hover:opacity-60 transition-opacity text-sm uppercase tracking-widest font-sans pt-4 border-t border-[#D6D1C7] w-48 text-center"
           >
             {currentUser
@@ -230,7 +202,7 @@ const Navbar: React.FC<NavbarProps> = ({
                 ? 'Salon Dashboard'
                 : 'My Account'
               : 'Sign In / Register'}
-          </button>
+          </a>
           <button
             onClick={handleCartClick}
             className="hover:opacity-60 transition-opacity text-sm uppercase tracking-widest font-sans"

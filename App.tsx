@@ -26,107 +26,123 @@ import {
   DEFAULT_BUSINESS_SETTINGS
 } from './constants';
 import { Product, ViewState, UserProfile } from './types';
-import { fetchServicesCatalog, setAuthToken } from './services/salonApi';
+import {
+  fetchServicesCatalog,
+  setAuthToken,
+  getStoredUser,
+  setStoredUser
+} from './services/salonApi';
+
+function resolveInitialView(
+  pathname: string,
+  search: string,
+  servicesList: Product[]
+): ViewState {
+  const clean = pathname.replace(/\/+$/, '') || '/';
+  const params = new URLSearchParams(search || '');
+
+  if (clean === '/') {
+    return { type: 'home' };
+  }
+  if (clean === '/services') {
+    return { type: 'services' };
+  }
+  if (clean.startsWith('/services/')) {
+    const slug = clean.replace('/services/', '');
+    const found =
+      servicesList.find((s) => s.slug === slug || s.id === slug) ||
+      PRODUCTS.find((s) => s.slug === slug || s.id === slug);
+    if (found) {
+      return { type: 'product', product: found };
+    }
+    return { type: 'services' };
+  }
+  if (clean === '/about') {
+    return { type: 'about' };
+  }
+  if (clean === '/journal') {
+    return { type: 'journal_list' };
+  }
+  if (clean.startsWith('/journal/')) {
+    const slug = clean.replace('/journal/', '');
+    const foundArt =
+      JOURNAL_ARTICLES.find((a) => a.slug === slug || String(a.id) === slug) ||
+      JOURNAL_ARTICLES[0];
+    return { type: 'journal', article: foundArt };
+  }
+  if (clean === '/contact') {
+    return { type: 'contact' };
+  }
+  if (clean === '/book') {
+    const srvSlug = params.get('service');
+    const initialService = srvSlug
+      ? servicesList.find((s) => s.slug === srvSlug || s.id === srvSlug) ||
+        PRODUCTS.find((s) => s.slug === srvSlug || s.id === srvSlug)
+      : undefined;
+    return { type: 'checkout', initialService };
+  }
+  if (clean === '/login') {
+    return { type: 'login' };
+  }
+  if (clean === '/register') {
+    return { type: 'register' };
+  }
+  if (
+    clean === '/account' ||
+    clean === '/account/bookings' ||
+    clean === '/account/profile'
+  ) {
+    const tab =
+      clean === '/account/bookings'
+        ? 'bookings'
+        : clean === '/account/profile'
+        ? 'profile'
+        : 'overview';
+    return { type: 'account', tab };
+  }
+  if (clean.startsWith('/dashboard')) {
+    const sub = clean.replace('/dashboard/', '').replace('/dashboard', '');
+    const section = (
+      [
+        'overview',
+        'bookings',
+        'customers',
+        'services',
+        'availability',
+        'emails',
+        'settings'
+      ].includes(sub)
+        ? sub
+        : 'overview'
+    ) as any;
+    return { type: 'dashboard', section };
+  }
+  return { type: 'home' };
+}
 
 function App() {
   const [services, setServices] = useState<Product[]>(PRODUCTS);
-  const [view, setView] = useState<ViewState>({ type: 'home' });
+  const [view, setView] = useState<ViewState>(() =>
+    resolveInitialView(
+      typeof window !== 'undefined' ? window.location.pathname : '/',
+      typeof window !== 'undefined' ? window.location.search : '',
+      PRODUCTS
+    )
+  );
   const [cartItems, setCartItems] = useState<Product[]>([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
-  const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
+  const [currentUser, setCurrentUser] = useState<UserProfile | null>(() =>
+    getStoredUser()
+  );
 
-  const pushPath = (path: string) => {
-    try {
-      window.history.pushState(null, '', path);
-    } catch {
-      // Ignore in restricted iframe contexts
-    }
+  // Navigate with real browser page load
+  const navigateBrowser = (url: string) => {
+    window.location.href = url;
   };
 
-  // Sync URL path on initial load & popstate — each section has its own dedicated page!
   const resolveRouteFromPath = useCallback(
-    (pathname: string) => {
-      const clean = pathname.replace(/\/+$/, '') || '/';
-      if (clean === '/') {
-        setView({ type: 'home' });
-        return;
-      }
-      if (clean === '/services') {
-        setView({ type: 'services' });
-        return;
-      }
-      if (clean.startsWith('/services/')) {
-        const slug = clean.replace('/services/', '');
-        const found =
-          services.find((s) => s.slug === slug || s.id === slug) ||
-          PRODUCTS.find((s) => s.slug === slug || s.id === slug);
-        if (found) {
-          setView({ type: 'product', product: found });
-          return;
-        }
-        setView({ type: 'services' });
-        return;
-      }
-      if (clean === '/about') {
-        setView({ type: 'about' });
-        return;
-      }
-      if (clean === '/journal') {
-        setView({ type: 'journal_list' });
-        return;
-      }
-      if (clean.startsWith('/journal/')) {
-        const slug = clean.replace('/journal/', '');
-        const foundArt =
-          JOURNAL_ARTICLES.find((a) => a.slug === slug || String(a.id) === slug) ||
-          JOURNAL_ARTICLES[0];
-        setView({ type: 'journal', article: foundArt });
-        return;
-      }
-      if (clean === '/contact') {
-        setView({ type: 'contact' });
-        return;
-      }
-      if (clean === '/book') {
-        setView({ type: 'checkout' });
-        return;
-      }
-      if (clean === '/login') {
-        setView({ type: 'login' });
-        return;
-      }
-      if (clean === '/register') {
-        setView({ type: 'register' });
-        return;
-      }
-      if (clean === '/account' || clean === '/account/bookings' || clean === '/account/profile') {
-        const tab =
-          clean === '/account/bookings'
-            ? 'bookings'
-            : clean === '/account/profile'
-            ? 'profile'
-            : 'overview';
-        setView({ type: 'account', tab });
-        return;
-      }
-      if (clean.startsWith('/dashboard')) {
-        const sub = clean.replace('/dashboard/', '').replace('/dashboard', '');
-        const section = (
-          [
-            'overview',
-            'bookings',
-            'customers',
-            'services',
-            'availability',
-            'emails',
-            'settings'
-          ].includes(sub)
-            ? sub
-            : 'overview'
-        ) as any;
-        setView({ type: 'dashboard', section });
-        return;
-      }
+    (pathname: string, search: string) => {
+      setView(resolveInitialView(pathname, search, services));
     },
     [services]
   );
@@ -144,8 +160,9 @@ function App() {
   }, []);
 
   useEffect(() => {
-    resolveRouteFromPath(window.location.pathname);
-    const onPopState = () => resolveRouteFromPath(window.location.pathname);
+    resolveRouteFromPath(window.location.pathname, window.location.search);
+    const onPopState = () =>
+      resolveRouteFromPath(window.location.pathname, window.location.search);
     window.addEventListener('popstate', onPopState);
     return () => window.removeEventListener('popstate', onPopState);
   }, [resolveRouteFromPath]);
@@ -186,59 +203,34 @@ function App() {
       | 'account'
       | 'dashboard'
   ) => {
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-    if (route === 'home') {
-      pushPath('/');
-      setView({ type: 'home' });
-    } else if (route === 'services') {
-      pushPath('/services');
-      setView({ type: 'services' });
-    } else if (route === 'about') {
-      pushPath('/about');
-      setView({ type: 'about' });
-    } else if (route === 'journal') {
-      pushPath('/journal');
-      setView({ type: 'journal_list' });
-    } else if (route === 'contact') {
-      pushPath('/contact');
-      setView({ type: 'contact' });
-    } else if (route === 'checkout') {
-      pushPath('/book');
-      setView({ type: 'checkout' });
-    } else if (route === 'login') {
-      pushPath('/login');
-      setView({ type: 'login' });
-    } else if (route === 'account') {
-      if (!currentUser) {
-        pushPath('/login');
-        setView({ type: 'login', redirectTo: 'account' });
-      } else {
-        pushPath('/account');
-        setView({ type: 'account', tab: 'overview' });
-      }
+    if (route === 'home') navigateBrowser('/');
+    else if (route === 'services') navigateBrowser('/services');
+    else if (route === 'about') navigateBrowser('/about');
+    else if (route === 'journal') navigateBrowser('/journal');
+    else if (route === 'contact') navigateBrowser('/contact');
+    else if (route === 'checkout') navigateBrowser('/book');
+    else if (route === 'login') navigateBrowser('/login');
+    else if (route === 'account') {
+      navigateBrowser(currentUser ? '/account' : '/login');
     } else if (route === 'dashboard') {
-      if (!currentUser || currentUser.role !== 'owner') {
-        pushPath('/login');
-        setView({ type: 'login', redirectTo: 'dashboard' });
-      } else {
-        pushPath('/dashboard');
-        setView({ type: 'dashboard', section: 'overview' });
-      }
+      navigateBrowser(
+        currentUser && currentUser.role === 'owner' ? '/dashboard' : '/login'
+      );
     }
   };
 
   const handleNavClick = (e: React.MouseEvent<HTMLAnchorElement>, targetId: string) => {
     e.preventDefault();
     if (targetId === 'products' || targetId === 'services') {
-      handleNavigateRoute('services');
+      navigateBrowser('/services');
     } else if (targetId === 'about') {
-      handleNavigateRoute('about');
+      navigateBrowser('/about');
     } else if (targetId === 'journal') {
-      handleNavigateRoute('journal');
+      navigateBrowser('/journal');
     } else if (targetId === 'contact') {
-      handleNavigateRoute('contact');
+      navigateBrowser('/contact');
     } else {
-      handleNavigateRoute('home');
+      navigateBrowser('/');
     }
   };
 
@@ -254,16 +246,18 @@ function App() {
   };
 
   const handleBookService = (service?: Product) => {
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-    pushPath('/book');
-    setView({ type: 'checkout', initialService: service });
+    if (service) {
+      navigateBrowser(`/book?service=${encodeURIComponent(service.slug)}`);
+    } else {
+      navigateBrowser('/book');
+    }
   };
 
   const handleLogout = () => {
     setAuthToken(null);
+    setStoredUser(null);
     setCurrentUser(null);
-    pushPath('/');
-    setView({ type: 'home' });
+    navigateBrowser('/');
   };
 
   const isTopBarDarkText = view.type !== 'journal';
@@ -291,7 +285,10 @@ function App() {
             <Hero onBookAppointment={() => handleBookService()} />
 
             {/* Essential Signature Rituals Preview (3 Curated Services) */}
-            <section id="products" className="py-28 px-6 md:px-12 bg-[#F5F2EB] border-t border-[#D6D1C7]/60">
+            <section
+              id="products"
+              className="py-28 px-6 md:px-12 bg-[#F5F2EB] border-t border-[#D6D1C7]/60"
+            >
               <div className="max-w-[1800px] mx-auto">
                 <div className="flex flex-col md:flex-row md:items-end justify-between mb-16 gap-6 reveal-on-scroll">
                   <div>
@@ -302,13 +299,12 @@ function App() {
                       Signature Hair Rituals
                     </h2>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => handleNavigateRoute('services')}
-                    className="self-start md:self-auto px-8 py-4 border border-[#2C2A26] text-[#2C2A26] text-xs font-medium uppercase tracking-widest hover:bg-[#2C2A26] hover:text-[#F5F2EB] transition-colors"
+                  <a
+                    href="/services"
+                    className="self-start md:self-auto px-8 py-4 border border-[#2C2A26] text-[#2C2A26] text-xs font-medium uppercase tracking-widest hover:bg-[#2C2A26] hover:text-[#F5F2EB] transition-colors inline-block"
                   >
                     Explore All {services.length} Services →
-                  </button>
+                  </a>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-x-8 gap-y-16">
@@ -316,11 +312,7 @@ function App() {
                     <ProductCard
                       key={product.id}
                       product={product}
-                      onClick={(p) => {
-                        window.scrollTo({ top: 0, behavior: 'smooth' });
-                        pushPath(`/services/${p.slug}`);
-                        setView({ type: 'product', product: p });
-                      }}
+                      onClick={(p) => navigateBrowser(`/services/${p.slug}`)}
                       onBookService={(p) => handleBookService(p)}
                     />
                   ))}
@@ -351,13 +343,12 @@ function App() {
                     <p className="text-[#5D5A53] font-light leading-relaxed mb-8">
                       Discover our Kyoto head-spa hydrotherapy, zero-tension braiding geometry, and ammonia-free botanical formulations.
                     </p>
-                    <button
-                      type="button"
-                      onClick={() => handleNavigateRoute('about')}
-                      className="text-xs font-semibold uppercase tracking-widest text-[#2C2A26] border-b border-[#2C2A26] pb-1 hover:opacity-60 transition-opacity"
+                    <a
+                      href="/about"
+                      className="text-xs font-semibold uppercase tracking-widest text-[#2C2A26] border-b border-[#2C2A26] pb-1 hover:opacity-60 transition-opacity inline-block"
                     >
                       Enter The Atelier Page →
-                    </button>
+                    </a>
                   </div>
                 </div>
 
@@ -381,13 +372,12 @@ function App() {
                     <p className="text-[#5D5A53] font-light leading-relaxed mb-8">
                       Read our trichological essays on knotless braid longevity, silk press hydration, and seasonal botanical glazes.
                     </p>
-                    <button
-                      type="button"
-                      onClick={() => handleNavigateRoute('journal')}
-                      className="text-xs font-semibold uppercase tracking-widest text-[#2C2A26] border-b border-[#2C2A26] pb-1 hover:opacity-60 transition-opacity"
+                    <a
+                      href="/journal"
+                      className="text-xs font-semibold uppercase tracking-widest text-[#2C2A26] border-b border-[#2C2A26] pb-1 hover:opacity-60 transition-opacity inline-block"
                     >
                       Read The Journal Page →
-                    </button>
+                    </a>
                   </div>
                 </div>
               </div>
@@ -402,11 +392,7 @@ function App() {
           <div className="pt-12 animate-fade-in-up">
             <ProductGrid
               services={services}
-              onProductClick={(p) => {
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-                pushPath(`/services/${p.slug}`);
-                setView({ type: 'product', product: p });
-              }}
+              onProductClick={(p) => navigateBrowser(`/services/${p.slug}`)}
               onBookService={(p) => handleBookService(p)}
             />
           </div>
@@ -427,11 +413,9 @@ function App() {
         {view.type === 'journal_list' && (
           <div className="pt-16 animate-fade-in-up">
             <Journal
-              onArticleClick={(a) => {
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-                pushPath(`/journal/${a.slug || a.id}`);
-                setView({ type: 'journal', article: a });
-              }}
+              onArticleClick={(a) =>
+                navigateBrowser(`/journal/${a.slug || a.id}`)
+              }
             />
           </div>
         )}
@@ -502,20 +486,18 @@ function App() {
                   Choose your ritual, select an available time slot, and receive your official reservation ticket automatically by email.
                 </p>
                 <div className="pt-4 flex flex-col sm:flex-row gap-4">
-                  <button
-                    type="button"
-                    onClick={() => handleBookService()}
-                    className="px-8 py-4 bg-[#F5F2EB] text-[#2C2A26] text-xs font-semibold uppercase tracking-widest hover:bg-white transition-colors"
+                  <a
+                    href="/book"
+                    className="px-8 py-4 bg-[#F5F2EB] text-[#2C2A26] text-xs font-semibold uppercase tracking-widest hover:bg-white transition-colors text-center"
                   >
                     Book an Appointment
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleNavigateRoute('services')}
-                    className="px-8 py-4 border border-[#F5F2EB]/40 text-[#F5F2EB] text-xs uppercase tracking-widest hover:bg-[#F5F2EB]/10 transition-colors"
+                  </a>
+                  <a
+                    href="/services"
+                    className="px-8 py-4 border border-[#F5F2EB]/40 text-[#F5F2EB] text-xs uppercase tracking-widest hover:bg-[#F5F2EB]/10 transition-colors text-center"
                   >
                     Browse Services
-                  </button>
+                  </a>
                 </div>
               </div>
             </div>
@@ -528,11 +510,7 @@ function App() {
         {view.type === 'product' && (
           <ProductDetail
             product={view.product}
-            onBack={() => {
-              pushPath('/services');
-              setView({ type: 'services' });
-              window.scrollTo({ top: 0, behavior: 'smooth' });
-            }}
+            onBack={() => navigateBrowser('/services')}
             onAddToCart={addToCart}
             onBookNow={(p) => handleBookService(p)}
           />
@@ -544,11 +522,7 @@ function App() {
         {view.type === 'journal' && (
           <JournalDetail
             article={view.article || JOURNAL_ARTICLES[0]}
-            onBack={() => {
-              pushPath('/journal');
-              setView({ type: 'journal_list' });
-              window.scrollTo({ top: 0, behavior: 'smooth' });
-            }}
+            onBack={() => navigateBrowser('/journal')}
           />
         )}
 
@@ -562,27 +536,15 @@ function App() {
             initialService={view.initialService}
             rescheduleBooking={view.rescheduleBooking}
             currentUser={currentUser}
-            onBack={() => {
-              pushPath('/');
-              setView({ type: 'home' });
-            }}
+            onBack={() => navigateBrowser('/')}
             onBookingConfirmed={(_booking, createdOrLoggedUser) => {
               if (createdOrLoggedUser) {
+                setStoredUser(createdOrLoggedUser);
                 setCurrentUser(createdOrLoggedUser);
               }
             }}
-            onViewAppointment={(bookingId) => {
-              if (currentUser) {
-                pushPath('/account/bookings');
-                setView({
-                  type: 'account',
-                  tab: 'bookings',
-                  highlightBookingId: bookingId
-                });
-              } else {
-                pushPath('/login');
-                setView({ type: 'login', redirectTo: 'account' });
-              }
+            onViewAppointment={() => {
+              navigateBrowser(currentUser ? '/account/bookings' : '/login');
             }}
           />
         )}
@@ -590,22 +552,16 @@ function App() {
         {(view.type === 'login' || view.type === 'register') && (
           <AuthView
             initialMode={view.type}
-            onBack={() => {
-              pushPath('/');
-              setView({ type: 'home' });
-            }}
+            onBack={() => navigateBrowser('/')}
             onSuccess={(user) => {
+              setStoredUser(user);
               setCurrentUser(user);
-              window.scrollTo({ top: 0, behavior: 'smooth' });
               if (user.role === 'owner' || view.redirectTo === 'dashboard') {
-                pushPath('/dashboard');
-                setView({ type: 'dashboard', section: 'overview' });
+                navigateBrowser('/dashboard');
               } else if (view.redirectTo === 'checkout') {
-                pushPath('/book');
-                setView({ type: 'checkout' });
+                navigateBrowser('/book');
               } else {
-                pushPath('/account');
-                setView({ type: 'account', tab: 'overview' });
+                navigateBrowser('/account');
               }
             }}
           />
@@ -618,30 +574,26 @@ function App() {
               services={services}
               initialTab={view.tab}
               highlightBookingId={view.highlightBookingId}
-              onUserUpdated={(u) => setCurrentUser(u)}
+              onUserUpdated={(u) => {
+                setStoredUser(u);
+                setCurrentUser(u);
+              }}
               onLogout={handleLogout}
               onBookAgain={(srv) => handleBookService(srv)}
               onRescheduleBooking={(bk) => {
                 window.scrollTo({ top: 0, behavior: 'smooth' });
-                pushPath('/book');
                 setView({ type: 'checkout', rescheduleBooking: bk });
               }}
-              onNavigateDashboard={() => {
-                pushPath('/dashboard');
-                setView({ type: 'dashboard', section: 'overview' });
-              }}
+              onNavigateDashboard={() => navigateBrowser('/dashboard')}
             />
           ) : (
             <AuthView
               initialMode="login"
-              onBack={() => {
-                pushPath('/');
-                setView({ type: 'home' });
-              }}
+              onBack={() => navigateBrowser('/')}
               onSuccess={(user) => {
+                setStoredUser(user);
                 setCurrentUser(user);
-                pushPath('/account');
-                setView({ type: 'account', tab: 'overview' });
+                navigateBrowser('/account');
               }}
             />
           ))}
@@ -651,28 +603,21 @@ function App() {
             <DashboardView
               user={currentUser}
               initialSection={view.section}
-              onBackToSite={() => {
-                pushPath('/');
-                setView({ type: 'home' });
-              }}
+              onBackToSite={() => navigateBrowser('/')}
               onLogout={handleLogout}
               onServicesChanged={(updated) => setServices(updated)}
             />
           ) : (
             <AuthView
               initialMode="login"
-              onBack={() => {
-                pushPath('/');
-                setView({ type: 'home' });
-              }}
+              onBack={() => navigateBrowser('/')}
               onSuccess={(user) => {
+                setStoredUser(user);
                 setCurrentUser(user);
                 if (user.role === 'owner') {
-                  pushPath('/dashboard');
-                  setView({ type: 'dashboard', section: 'overview' });
+                  navigateBrowser('/dashboard');
                 } else {
-                  pushPath('/account');
-                  setView({ type: 'account', tab: 'overview' });
+                  navigateBrowser('/account');
                 }
               }}
             />
@@ -690,9 +635,7 @@ function App() {
         onRemoveItem={removeFromCart}
         onCheckout={() => {
           setIsCartOpen(false);
-          window.scrollTo({ top: 0, behavior: 'smooth' });
-          pushPath('/book');
-          setView({ type: 'checkout', initialService: cartItems[0] });
+          handleBookService(cartItems[0]);
         }}
       />
     </div>

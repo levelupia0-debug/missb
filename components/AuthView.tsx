@@ -9,7 +9,6 @@ import {
   loginUser,
   registerUser,
   resetUserPassword,
-  loginWithGoogleFirebase,
   sendVerificationCode
 } from '../services/salonApi';
 
@@ -32,6 +31,9 @@ const AuthView: React.FC<AuthViewProps> = ({
   const [password, setPassword] = useState('');
   const [hairTextureNotes, setHairTextureNotes] = useState('');
   const [verificationCode, setVerificationCode] = useState('');
+  const [verificationToken, setVerificationToken] = useState<string | undefined>(
+    undefined
+  );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
@@ -49,15 +51,16 @@ const AuthView: React.FC<AuthViewProps> = ({
       } else if (mode === 'register') {
         if (registerStep === 'form') {
           const codeRes = await sendVerificationCode({ name, email });
+          setVerificationToken(codeRes.verificationToken);
           setRegisterStep('verify');
           if (codeRes.fallbackCode) {
             setVerificationCode(codeRes.fallbackCode);
             setStatusMessage(
-              `Verification code sent to ${email}. (Preview mode auto-filled: ${codeRes.fallbackCode} — add RESEND_API_KEY on Vercel for live Gmail delivery)`
+              `A 6-digit verification code has been generated for ${email}. Please confirm the code below to activate your account.`
             );
           } else {
             setStatusMessage(
-              `A 6-digit verification code has been sent via Resend to ${email}. Please enter it below to continue.`
+              `A 6-digit verification code has been sent to ${email}. Please check your inbox and enter it below to continue.`
             );
           }
         } else {
@@ -67,7 +70,8 @@ const AuthView: React.FC<AuthViewProps> = ({
             phone,
             password,
             hairTextureNotes,
-            verificationCode
+            verificationCode,
+            verificationToken
           });
           onSuccess(res.user);
         }
@@ -77,34 +81,10 @@ const AuthView: React.FC<AuthViewProps> = ({
         setMode('login');
       }
     } catch (err: any) {
-      setError(err.message || 'Authentication failed.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleGoogleSignIn = async () => {
-    setError(null);
-    setStatusMessage(null);
-    setLoading(true);
-    try {
-      const res = await loginWithGoogleFirebase();
-      onSuccess(res.user);
-    } catch (err: any) {
-      setError(err.message || 'Google Sign-In failed.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleQuickDemoLogin = async (demoEmail: string, demoPass: string) => {
-    setError(null);
-    setLoading(true);
-    try {
-      const res = await loginUser(demoEmail, demoPass);
-      onSuccess(res.user);
-    } catch (err: any) {
-      setError(err.message || 'Demo login failed.');
+      setError(
+        err?.message ||
+          'We could not complete your authentication request. Please verify your credentials and try again.'
+      );
     } finally {
       setLoading(false);
     }
@@ -113,9 +93,13 @@ const AuthView: React.FC<AuthViewProps> = ({
   return (
     <div className="min-h-screen pt-28 pb-24 px-6 bg-[#F5F2EB] animate-fade-in-up">
       <div className="max-w-xl mx-auto">
-        <button
-          onClick={onBack}
-          className="group flex items-center gap-2 text-xs font-medium uppercase tracking-widest text-[#A8A29E] hover:text-[#2C2A26] transition-colors mb-12"
+        <a
+          href="/"
+          onClick={(e) => {
+            e.preventDefault();
+            onBack();
+          }}
+          className="group inline-flex items-center gap-2 text-xs font-medium uppercase tracking-widest text-[#A8A29E] hover:text-[#2C2A26] transition-colors mb-12"
         >
           <svg
             xmlns="http://www.w3.org/2000/svg"
@@ -132,7 +116,7 @@ const AuthView: React.FC<AuthViewProps> = ({
             />
           </svg>
           Back to Atelier
-        </button>
+        </a>
 
         <div className="bg-white/75 border border-[#D6D1C7] p-8 md:p-14">
           <span className="block text-xs uppercase tracking-[0.2em] text-[#A8A29E] mb-3">
@@ -151,11 +135,11 @@ const AuthView: React.FC<AuthViewProps> = ({
           </h1>
           <p className="text-sm text-[#5D5A53] font-light mb-8">
             {mode === 'login' &&
-              'Access your upcoming reservations, ritual history, or salon management suite.'}
+              'Sign in with your email address and password to access your reservations and profile.'}
             {mode === 'register' &&
               (registerStep === 'verify'
                 ? `We dispatched a 6-digit verification code to ${email}. Enter it below to activate your account.`
-                : 'Join Miss beauty to book appointments, store texture preferences, and manage reservations.')}
+                : 'Join Miss beauty to book appointments, store texture preferences, and manage your reservations.')}
             {mode === 'reset' &&
               'Enter your registered email address and choose a new password.'}
           </p>
@@ -172,34 +156,6 @@ const AuthView: React.FC<AuthViewProps> = ({
             </div>
           )}
 
-          {/* Google Firebase Sign-In Button */}
-          {mode !== 'reset' && registerStep === 'form' && (
-            <div className="mb-8">
-              <button
-                type="button"
-                onClick={handleGoogleSignIn}
-                disabled={loading}
-                className="w-full py-4 px-6 border border-[#2C2A26] bg-[#F5F2EB] text-[#2C2A26] hover:bg-[#2C2A26] hover:text-[#F5F2EB] transition-colors flex items-center justify-center gap-3 text-xs uppercase tracking-widest font-medium disabled:opacity-50"
-              >
-                <svg className="w-4 h-4" viewBox="0 0 24 24" aria-hidden="true">
-                  <path
-                    fill="currentColor"
-                    d="M21.35 11.1h-9.17v2.73h6.51c-.33 3.81-3.5 5.44-6.5 5.44C8.36 19.27 5 15.65 5 12c0-3.65 3.36-7.27 7.2-7.27c3.09 0 4.9 1.97 4.9 1.97L19 4.72S16.56 2 12.1 2C6.42 2 2.03 6.8 2.03 12c0 5.05 4.13 10 10.22 10c5.35 0 9.25-3.67 9.25-9.09c0-1.15-.15-1.81-.15-1.81Z"
-                  />
-                </svg>
-                Continue with Google
-              </button>
-
-              <div className="relative flex py-5 items-center">
-                <div className="flex-grow border-t border-[#D6D1C7]"></div>
-                <span className="flex-shrink mx-4 text-[11px] uppercase tracking-widest text-[#A8A29E]">
-                  Or with email
-                </span>
-                <div className="flex-grow border-t border-[#D6D1C7]"></div>
-              </div>
-            </div>
-          )}
-
           <form onSubmit={handleSubmit} className="space-y-6">
             {mode === 'register' && registerStep === 'verify' ? (
               <div className="space-y-6">
@@ -212,7 +168,9 @@ const AuthView: React.FC<AuthViewProps> = ({
                     required
                     maxLength={6}
                     value={verificationCode}
-                    onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, ''))}
+                    onChange={(e) =>
+                      setVerificationCode(e.target.value.replace(/\D/g, ''))
+                    }
                     placeholder="000000"
                     className="w-full bg-[#F5F2EB] border border-[#2C2A26] py-4 px-6 text-center font-serif text-3xl tracking-[0.4em] text-[#2C2A26] outline-none"
                   />
@@ -235,12 +193,15 @@ const AuthView: React.FC<AuthViewProps> = ({
                       setError(null);
                       try {
                         const codeRes = await sendVerificationCode({ name, email });
+                        setVerificationToken(codeRes.verificationToken);
                         if (codeRes.fallbackCode) {
                           setVerificationCode(codeRes.fallbackCode);
                         }
                         setStatusMessage(`A new verification code was sent to ${email}.`);
                       } catch (err: any) {
-                        setError(err.message);
+                        setError(
+                          err?.message || 'Unable to resend verification code right now.'
+                        );
                       }
                     }}
                     className="underline underline-offset-4 hover:text-[#2C2A26]"
@@ -262,7 +223,7 @@ const AuthView: React.FC<AuthViewProps> = ({
                       maxLength={100}
                       value={name}
                       onChange={(e) => setName(e.target.value)}
-                      placeholder="Sarah Jenkins"
+                      placeholder="Your full name"
                       className="w-full bg-transparent border-b border-[#D6D1C7] py-3 text-[#2C2A26] placeholder-[#A8A29E] outline-none focus:border-[#2C2A26]"
                     />
                   </div>
@@ -278,7 +239,7 @@ const AuthView: React.FC<AuthViewProps> = ({
                     maxLength={160}
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder="sarah@example.com"
+                    placeholder="name@domain.com"
                     className="w-full bg-transparent border-b border-[#D6D1C7] py-3 text-[#2C2A26] placeholder-[#A8A29E] outline-none focus:border-[#2C2A26]"
                   />
                 </div>
@@ -293,7 +254,7 @@ const AuthView: React.FC<AuthViewProps> = ({
                       maxLength={40}
                       value={phone}
                       onChange={(e) => setPhone(e.target.value)}
-                      placeholder="+1 (212) 555-0194"
+                      placeholder="+33 6 00 00 00 00"
                       className="w-full bg-transparent border-b border-[#D6D1C7] py-3 text-[#2C2A26] placeholder-[#A8A29E] outline-none focus:border-[#2C2A26]"
                     />
                   </div>
@@ -390,31 +351,6 @@ const AuthView: React.FC<AuthViewProps> = ({
                 Already have an account? Sign in
               </button>
             )}
-          </div>
-
-          {/* Instant Demo Access Section */}
-          <div className="mt-8 pt-6 border-t border-[#D6D1C7]/70">
-            <span className="block text-[11px] uppercase tracking-widest text-[#A8A29E] mb-3">
-              One-Click Demo Access
-            </span>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <button
-                type="button"
-                onClick={() => handleQuickDemoLogin('sarah@example.com', 'Sarah2026!')}
-                className="py-3 px-4 border border-[#D6D1C7] text-xs uppercase tracking-widest text-[#2C2A26] hover:border-[#2C2A26] bg-[#F5F2EB]/60 transition-colors"
-              >
-                Client Demo (Sarah)
-              </button>
-              <button
-                type="button"
-                onClick={() =>
-                  handleQuickDemoLogin('owner@missbeauty.atelier', 'Atelier2026!')
-                }
-                className="py-3 px-4 border border-[#2C2A26] text-xs uppercase tracking-widest text-[#2C2A26] hover:bg-[#2C2A26] hover:text-[#F5F2EB] transition-colors"
-              >
-                Salon Owner Dashboard
-              </button>
-            </div>
           </div>
         </div>
       </div>

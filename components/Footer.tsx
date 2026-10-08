@@ -22,7 +22,7 @@ interface FooterProps {
   ) => void;
 }
 
-const Footer: React.FC<FooterProps> = ({ onLinkClick, onNavigateRoute }) => {
+const Footer: React.FC<FooterProps> = () => {
   const [openSection, setOpenSection] = useState<string | null>(null);
   const [subscribeStatus, setSubscribeStatus] = useState<'idle' | 'loading' | 'success'>('idle');
   const [email, setEmail] = useState('');
@@ -40,51 +40,190 @@ const Footer: React.FC<FooterProps> = ({ onLinkClick, onNavigateRoute }) => {
     }, 900);
   };
 
-  const goRoute = (
-    e: React.MouseEvent,
-    route:
-      | 'home'
-      | 'services'
-      | 'about'
-      | 'journal'
-      | 'contact'
-      | 'checkout'
-      | 'login'
-      | 'account'
-      | 'dashboard'
-  ) => {
-    e.preventDefault();
-    if (onNavigateRoute) {
-      onNavigateRoute(route);
-    } else {
-      onLinkClick(e as any, route === 'services' ? 'products' : route);
-    }
-  };
-
   return (
     <footer className="bg-[#EBE7DE] pt-16 pb-12 px-6 md:px-12 text-[#5D5A53] border-t border-[#D6D1C7] print:hidden">
       <div className="max-w-[1400px] mx-auto">
         {/* Top Brand Header */}
         <div className="flex flex-col md:flex-row md:items-center justify-between pb-10 border-b border-[#D6D1C7] gap-6">
           <div>
-            <h4 className="text-2xl md:text-3xl font-serif text-[#2C2A26] tracking-tight">
+            <a
+              href="/"
+              className="text-2xl md:text-3xl font-serif text-[#2C2A26] tracking-tight hover:opacity-80 transition-opacity"
+            >
               {BRAND_NAME}
-            </h4>
+            </a>
             <p className="text-xs uppercase tracking-[0.22em] text-[#A8A29E] mt-1">
               {DEFAULT_BUSINESS_SETTINGS.address} · {DEFAULT_BUSINESS_SETTINGS.city}
             </p>
           </div>
-          <button
-            type="button"
-            onClick={(e) => goRoute(e, 'checkout')}
-            className="self-start md:self-auto px-8 py-3.5 bg-[#2C2A26] text-[#F5F2EB] text-xs uppercase tracking-widest hover:bg-[#433E38] transition-colors"
+          <a
+            href="/book"
+            className="self-start md:self-auto px-8 py-3.5 bg-[#2C2A26] text-[#F5F2EB] text-xs uppercase tracking-widest hover:bg-[#433E38] transition-colors inline-block"
           >
             Book an Appointment
-          </button>
+          </a>
         </div>
 
-        {/* Enterprise-Style Expandable Accordion Sections */}
-        <div className="divide-y divide-[#D6D1C7]">
+        {/* =====================================================================
+            DESKTOP VIEW (md and up): Open Multi-Column Layout (NO Arrow Buttons)
+            ===================================================================== */}
+        <div className="hidden md:grid md:grid-cols-4 gap-12 py-12 text-sm font-light">
+          {/* Column 1: Services */}
+          <div className="space-y-4">
+            <h5 className="text-xs font-medium uppercase tracking-[0.2em] text-[#2C2A26]">
+              Services & Hair Rituals
+            </h5>
+            <ul className="space-y-2.5">
+              <li>
+                <a
+                  href="/services"
+                  className="hover:text-[#2C2A26] transition-colors underline-offset-4 hover:underline"
+                >
+                  All Salon Services
+                </a>
+              </li>
+              <li>
+                <a
+                  href="/services/braids"
+                  className="hover:text-[#2C2A26] transition-colors underline-offset-4 hover:underline"
+                >
+                  Knotless & Stitch Braids
+                </a>
+              </li>
+              <li>
+                <a
+                  href="/services/silk-press"
+                  className="hover:text-[#2C2A26] transition-colors underline-offset-4 hover:underline"
+                >
+                  Silk Press & Sculptural Cut
+                </a>
+              </li>
+              <li>
+                <a
+                  href="/services/treatment"
+                  className="hover:text-[#2C2A26] transition-colors underline-offset-4 hover:underline"
+                >
+                  Botanical Color & Head Spa
+                </a>
+              </li>
+            </ul>
+          </div>
+
+          {/* Column 2: The Atelier & Editorial Dossiers */}
+          <div className="space-y-4">
+            <h5 className="text-xs font-medium uppercase tracking-[0.2em] text-[#2C2A26]">
+              The Atelier & Dossiers
+            </h5>
+            <ul className="space-y-2.5">
+              <li>
+                <a
+                  href="/about"
+                  className="hover:text-[#2C2A26] transition-colors underline-offset-4 hover:underline"
+                >
+                  Our Philosophy & Craft
+                </a>
+              </li>
+              <li>
+                <a
+                  href="/journal"
+                  className="hover:text-[#2C2A26] transition-colors underline-offset-4 hover:underline"
+                >
+                  The Editorial Journal
+                </a>
+              </li>
+              <li>
+                <a
+                  href="/contact"
+                  className="hover:text-[#2C2A26] transition-colors underline-offset-4 hover:underline"
+                >
+                  Location & Concierge
+                </a>
+              </li>
+              <li>
+                <a
+                  href="/book"
+                  className="hover:text-[#2C2A26] transition-colors underline-offset-4 hover:underline"
+                >
+                  Reserve Online
+                </a>
+              </li>
+            </ul>
+          </div>
+
+          {/* Column 3: Client Access */}
+          <div className="space-y-4">
+            <h5 className="text-xs font-medium uppercase tracking-[0.2em] text-[#2C2A26]">
+              Client Access
+            </h5>
+            <ul className="space-y-2.5">
+              <li>
+                <a
+                  href="/account"
+                  className="hover:text-[#2C2A26] transition-colors underline-offset-4 hover:underline"
+                >
+                  My Client Account
+                </a>
+              </li>
+              <li>
+                <a
+                  href="/login"
+                  className="hover:text-[#2C2A26] transition-colors underline-offset-4 hover:underline"
+                >
+                  Sign In
+                </a>
+              </li>
+              <li>
+                <a
+                  href="/register"
+                  className="hover:text-[#2C2A26] transition-colors underline-offset-4 hover:underline"
+                >
+                  Create an Account
+                </a>
+              </li>
+            </ul>
+          </div>
+
+          {/* Column 4: Hours, Policies & Private Letters */}
+          <div className="space-y-4">
+            <h5 className="text-xs font-medium uppercase tracking-[0.2em] text-[#2C2A26]">
+              Sanctuary Hours & Letters
+            </h5>
+            <p className="text-[#2C2A26] font-normal">
+              {DEFAULT_BUSINESS_SETTINGS.hoursSummary}
+            </p>
+            <p className="text-xs leading-relaxed">
+              {DEFAULT_BUSINESS_SETTINGS.cancellationPolicy}
+            </p>
+            <p className="text-xs text-[#A8A29E]">
+              {DEFAULT_BUSINESS_SETTINGS.phone} · {DEFAULT_BUSINESS_SETTINGS.email}
+            </p>
+            <div className="pt-2 flex items-end gap-2">
+              <input
+                type="email"
+                placeholder="email@address.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                disabled={subscribeStatus === 'loading' || subscribeStatus === 'success'}
+                className="w-full bg-transparent border-b border-[#A8A29E] py-1.5 text-xs outline-none focus:border-[#2C2A26] transition-colors placeholder-[#A8A29E]/70 text-[#2C2A26]"
+              />
+              <button
+                type="button"
+                onClick={handleSubscribe}
+                disabled={subscribeStatus !== 'idle' || !email}
+                className="px-4 py-1.5 border border-[#2C2A26] text-[#2C2A26] text-[10px] uppercase tracking-widest hover:bg-[#2C2A26] hover:text-[#F5F2EB] transition-colors disabled:opacity-50"
+              >
+                {subscribeStatus === 'idle' && 'Join'}
+                {subscribeStatus === 'loading' && '...'}
+                {subscribeStatus === 'success' && 'Joined'}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* =====================================================================
+            MOBILE VIEW (< md): Expandable Title + Arrow Accordion Sections
+            ===================================================================== */}
+        <div className="md:hidden divide-y divide-[#D6D1C7]">
           {/* Section 1: Services */}
           <div>
             <button
@@ -93,7 +232,7 @@ const Footer: React.FC<FooterProps> = ({ onLinkClick, onNavigateRoute }) => {
               aria-expanded={openSection === 'services'}
               className="w-full py-5 flex items-center justify-between text-left group"
             >
-              <span className="text-xs md:text-sm font-medium uppercase tracking-[0.2em] text-[#2C2A26] group-hover:opacity-75 transition-opacity">
+              <span className="text-xs font-medium uppercase tracking-[0.2em] text-[#2C2A26]">
                 Services & Hair Rituals
               </span>
               <svg
@@ -114,40 +253,24 @@ const Footer: React.FC<FooterProps> = ({ onLinkClick, onNavigateRoute }) => {
                 openSection === 'services' ? 'max-h-72 pb-6 opacity-100' : 'max-h-0 opacity-0'
               }`}
             >
-              <ul className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 text-sm font-light pt-2">
+              <ul className="grid grid-cols-1 gap-3 text-sm font-light pt-2">
                 <li>
-                  <a
-                    href="/services"
-                    onClick={(e) => goRoute(e, 'services')}
-                    className="hover:text-[#2C2A26] transition-colors underline-offset-4 hover:underline"
-                  >
+                  <a href="/services" className="hover:text-[#2C2A26]">
                     All Salon Services
                   </a>
                 </li>
                 <li>
-                  <a
-                    href="/services"
-                    onClick={(e) => goRoute(e, 'services')}
-                    className="hover:text-[#2C2A26] transition-colors underline-offset-4 hover:underline"
-                  >
+                  <a href="/services/braids" className="hover:text-[#2C2A26]">
                     Knotless & Stitch Braids
                   </a>
                 </li>
                 <li>
-                  <a
-                    href="/services"
-                    onClick={(e) => goRoute(e, 'services')}
-                    className="hover:text-[#2C2A26] transition-colors underline-offset-4 hover:underline"
-                  >
+                  <a href="/services/silk-press" className="hover:text-[#2C2A26]">
                     Silk Press & Sculptural Cut
                   </a>
                 </li>
                 <li>
-                  <a
-                    href="/services"
-                    onClick={(e) => goRoute(e, 'services')}
-                    className="hover:text-[#2C2A26] transition-colors underline-offset-4 hover:underline"
-                  >
+                  <a href="/services/treatment" className="hover:text-[#2C2A26]">
                     Botanical Color & Head Spa
                   </a>
                 </li>
@@ -163,8 +286,8 @@ const Footer: React.FC<FooterProps> = ({ onLinkClick, onNavigateRoute }) => {
               aria-expanded={openSection === 'atelier'}
               className="w-full py-5 flex items-center justify-between text-left group"
             >
-              <span className="text-xs md:text-sm font-medium uppercase tracking-[0.2em] text-[#2C2A26] group-hover:opacity-75 transition-opacity">
-                The Atelier & Editorial Dossiers
+              <span className="text-xs font-medium uppercase tracking-[0.2em] text-[#2C2A26]">
+                The Atelier & Dossiers
               </span>
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -184,40 +307,24 @@ const Footer: React.FC<FooterProps> = ({ onLinkClick, onNavigateRoute }) => {
                 openSection === 'atelier' ? 'max-h-72 pb-6 opacity-100' : 'max-h-0 opacity-0'
               }`}
             >
-              <ul className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 text-sm font-light pt-2">
+              <ul className="grid grid-cols-1 gap-3 text-sm font-light pt-2">
                 <li>
-                  <a
-                    href="/about"
-                    onClick={(e) => goRoute(e, 'about')}
-                    className="hover:text-[#2C2A26] transition-colors underline-offset-4 hover:underline"
-                  >
+                  <a href="/about" className="hover:text-[#2C2A26]">
                     Our Philosophy & Craft
                   </a>
                 </li>
                 <li>
-                  <a
-                    href="/journal"
-                    onClick={(e) => goRoute(e, 'journal')}
-                    className="hover:text-[#2C2A26] transition-colors underline-offset-4 hover:underline"
-                  >
+                  <a href="/journal" className="hover:text-[#2C2A26]">
                     The Editorial Journal
                   </a>
                 </li>
                 <li>
-                  <a
-                    href="/contact"
-                    onClick={(e) => goRoute(e, 'contact')}
-                    className="hover:text-[#2C2A26] transition-colors underline-offset-4 hover:underline"
-                  >
+                  <a href="/contact" className="hover:text-[#2C2A26]">
                     Location & Concierge
                   </a>
                 </li>
                 <li>
-                  <a
-                    href="/book"
-                    onClick={(e) => goRoute(e, 'checkout')}
-                    className="hover:text-[#2C2A26] transition-colors underline-offset-4 hover:underline"
-                  >
+                  <a href="/book" className="hover:text-[#2C2A26]">
                     Reserve Online
                   </a>
                 </li>
@@ -225,7 +332,7 @@ const Footer: React.FC<FooterProps> = ({ onLinkClick, onNavigateRoute }) => {
             </div>
           </div>
 
-          {/* Section 3: Client Account & Management Suite */}
+          {/* Section 3: Client Access */}
           <div>
             <button
               type="button"
@@ -233,8 +340,8 @@ const Footer: React.FC<FooterProps> = ({ onLinkClick, onNavigateRoute }) => {
               aria-expanded={openSection === 'portal'}
               className="w-full py-5 flex items-center justify-between text-left group"
             >
-              <span className="text-xs md:text-sm font-medium uppercase tracking-[0.2em] text-[#2C2A26] group-hover:opacity-75 transition-opacity">
-                Client Portal & Management
+              <span className="text-xs font-medium uppercase tracking-[0.2em] text-[#2C2A26]">
+                Client Access
               </span>
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -254,33 +361,21 @@ const Footer: React.FC<FooterProps> = ({ onLinkClick, onNavigateRoute }) => {
                 openSection === 'portal' ? 'max-h-72 pb-6 opacity-100' : 'max-h-0 opacity-0'
               }`}
             >
-              <ul className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 text-sm font-light pt-2">
+              <ul className="grid grid-cols-1 gap-3 text-sm font-light pt-2">
                 <li>
-                  <button
-                    type="button"
-                    onClick={(e) => goRoute(e, 'account')}
-                    className="hover:text-[#2C2A26] transition-colors underline-offset-4 hover:underline text-left"
-                  >
+                  <a href="/account" className="hover:text-[#2C2A26]">
                     My Client Account
-                  </button>
+                  </a>
                 </li>
                 <li>
-                  <button
-                    type="button"
-                    onClick={(e) => goRoute(e, 'login')}
-                    className="hover:text-[#2C2A26] transition-colors underline-offset-4 hover:underline text-left"
-                  >
-                    Sign In / Register
-                  </button>
+                  <a href="/login" className="hover:text-[#2C2A26]">
+                    Sign In
+                  </a>
                 </li>
                 <li>
-                  <button
-                    type="button"
-                    onClick={(e) => goRoute(e, 'dashboard')}
-                    className="hover:text-[#2C2A26] transition-colors underline-offset-4 hover:underline text-left"
-                  >
-                    Salon Owner Portal
-                  </button>
+                  <a href="/register" className="hover:text-[#2C2A26]">
+                    Create an Account
+                  </a>
                 </li>
               </ul>
             </div>
@@ -294,8 +389,8 @@ const Footer: React.FC<FooterProps> = ({ onLinkClick, onNavigateRoute }) => {
               aria-expanded={openSection === 'info'}
               className="w-full py-5 flex items-center justify-between text-left group"
             >
-              <span className="text-xs md:text-sm font-medium uppercase tracking-[0.2em] text-[#2C2A26] group-hover:opacity-75 transition-opacity">
-                Sanctuary Hours, Policy & Private Letters
+              <span className="text-xs font-medium uppercase tracking-[0.2em] text-[#2C2A26]">
+                Sanctuary Hours & Letters
               </span>
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -315,36 +410,29 @@ const Footer: React.FC<FooterProps> = ({ onLinkClick, onNavigateRoute }) => {
                 openSection === 'info' ? 'max-h-96 pb-8 opacity-100' : 'max-h-0 opacity-0'
               }`}
             >
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pt-2 text-sm font-light">
-                <div className="space-y-2">
-                  <p className="text-[#2C2A26] font-medium">
-                    {DEFAULT_BUSINESS_SETTINGS.hoursSummary}
-                  </p>
-                  <p>{DEFAULT_BUSINESS_SETTINGS.cancellationPolicy}</p>
-                  <p className="text-xs text-[#A8A29E] pt-1">
-                    Direct Concierge: {DEFAULT_BUSINESS_SETTINGS.phone} ·{' '}
-                    {DEFAULT_BUSINESS_SETTINGS.email}
-                  </p>
-                </div>
-                <div className="flex flex-col sm:flex-row items-start sm:items-end gap-4">
-                  <div className="w-full sm:flex-1">
-                    <label className="block text-[11px] uppercase tracking-widest text-[#A8A29E] mb-2">
-                      Atelier Letters
-                    </label>
-                    <input
-                      type="email"
-                      placeholder="email@address.com"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      disabled={subscribeStatus === 'loading' || subscribeStatus === 'success'}
-                      className="w-full bg-transparent border-b border-[#A8A29E] py-2 text-sm outline-none focus:border-[#2C2A26] transition-colors placeholder-[#A8A29E]/70 text-[#2C2A26]"
-                    />
-                  </div>
+              <div className="space-y-4 pt-2 text-sm font-light">
+                <p className="text-[#2C2A26] font-medium">
+                  {DEFAULT_BUSINESS_SETTINGS.hoursSummary}
+                </p>
+                <p>{DEFAULT_BUSINESS_SETTINGS.cancellationPolicy}</p>
+                <p className="text-xs text-[#A8A29E]">
+                  Direct Concierge: {DEFAULT_BUSINESS_SETTINGS.phone} ·{' '}
+                  {DEFAULT_BUSINESS_SETTINGS.email}
+                </p>
+                <div className="flex items-end gap-3 pt-2">
+                  <input
+                    type="email"
+                    placeholder="email@address.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    disabled={subscribeStatus === 'loading' || subscribeStatus === 'success'}
+                    className="flex-1 bg-transparent border-b border-[#A8A29E] py-2 text-sm outline-none focus:border-[#2C2A26] placeholder-[#A8A29E]/70 text-[#2C2A26]"
+                  />
                   <button
                     type="button"
                     onClick={handleSubscribe}
                     disabled={subscribeStatus !== 'idle' || !email}
-                    className="px-6 py-2.5 border border-[#2C2A26] text-[#2C2A26] text-xs uppercase tracking-widest hover:bg-[#2C2A26] hover:text-[#F5F2EB] transition-colors disabled:opacity-50"
+                    className="px-5 py-2 border border-[#2C2A26] text-[#2C2A26] text-xs uppercase tracking-widest hover:bg-[#2C2A26] hover:text-[#F5F2EB] transition-colors disabled:opacity-50"
                   >
                     {subscribeStatus === 'idle' && 'Subscribe'}
                     {subscribeStatus === 'loading' && '...'}

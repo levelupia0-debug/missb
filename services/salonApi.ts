@@ -13,21 +13,46 @@ import {
   BusinessSettings
 } from '../types';
 import {
-  signInWithGoogleFirebase,
   signOutFirebase,
   syncFirebaseUserToFirestore,
   syncBookingCreationToFirestore,
   syncBookingUpdateToFirestore,
   syncServiceToFirestore,
-  syncAvailabilityToFirestore,
-  seedCatalogToFirestoreIfAdmin
+  syncAvailabilityToFirestore
 } from '../firebase';
-import { PRODUCTS } from '../constants';
+import {
+  PRODUCTS,
+  DEFAULT_AVAILABILITY,
+  DEFAULT_BUSINESS_SETTINGS
+} from '../constants';
 
-let authTokenInMemory: string | null = null;
+const STORAGE_TOKEN_KEY = 'mb_auth_token_v1';
+const STORAGE_USER_KEY = 'mb_current_user_v1';
+
+let authTokenInMemory: string | null = (() => {
+  try {
+    return typeof window !== 'undefined'
+      ? window.localStorage.getItem(STORAGE_TOKEN_KEY)
+      : null;
+  } catch {
+    return null;
+  }
+})();
 
 export function setAuthToken(token: string | null) {
   authTokenInMemory = token;
+  try {
+    if (typeof window !== 'undefined') {
+      if (token) {
+        window.localStorage.setItem(STORAGE_TOKEN_KEY, token);
+      } else {
+        window.localStorage.removeItem(STORAGE_TOKEN_KEY);
+        window.localStorage.removeItem(STORAGE_USER_KEY);
+      }
+    }
+  } catch {
+    // Ignore storage quota errors
+  }
   if (!token) {
     signOutFirebase().catch(() => {});
   }
@@ -35,6 +60,32 @@ export function setAuthToken(token: string | null) {
 
 export function getAuthToken(): string | null {
   return authTokenInMemory;
+}
+
+export function setStoredUser(user: UserProfile | null) {
+  try {
+    if (typeof window !== 'undefined') {
+      if (user) {
+        window.localStorage.setItem(STORAGE_USER_KEY, JSON.stringify(user));
+      } else {
+        window.localStorage.removeItem(STORAGE_USER_KEY);
+      }
+    }
+  } catch {
+    // Ignore storage errors
+  }
+}
+
+export function getStoredUser(): UserProfile | null {
+  try {
+    if (typeof window !== 'undefined') {
+      const raw = window.localStorage.getItem(STORAGE_USER_KEY);
+      if (raw) return JSON.parse(raw) as UserProfile;
+    }
+  } catch {
+    // Ignore parse errors
+  }
+  return null;
 }
 
 function getHeaders(): HeadersInit {
@@ -47,39 +98,52 @@ function getHeaders(): HeadersInit {
   return headers;
 }
 
-export async function loginWithGoogleFirebase(): Promise<{
-  token: string;
-  user: UserProfile;
-}> {
-  const fbUser = await signInWithGoogleFirebase();
-  await syncFirebaseUserToFirestore({
-    name: fbUser.displayName || undefined
-  });
-  await seedCatalogToFirestoreIfAdmin(PRODUCTS);
+/**
+ * Safely parses API responses and guarantees clean, human-readable error messages.
+ * Never exposes raw JSON syntax errors like "Unexpected token 'T'..." to the user.
+ */
+async function parseApiResponse<T>(
+  res: Response,
+  fallbackErrorMessage: string
+): Promise<T> {
+  const text = await res.text().catch(() => '');
+  let parsed: any = null;
+  if (text) {
+    try {
+      parsed = JSON.parse(text);
+    } catch {
+      parsed = null;
+    }
+  }
 
-  const res = await fetch('/api/auth/firebase-sync', {
-    method: 'POST',
-    headers: getHeaders(),
-    body: JSON.stringify({
-      uid: fbUser.uid,
-      email: fbUser.email,
-      name: fbUser.displayName,
-      phone: fbUser.phoneNumber || ''
-    })
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Firebase sign-in sync failed.');
-  setAuthToken(data.token);
-  return data;
+  if (!res.ok) {
+    const cleanMsg =
+      parsed && typeof parsed.error === 'string' && parsed.error.trim()
+        ? parsed.error.trim()
+        : fallbackErrorMessage;
+    throw new Error(cleanMsg);
+  }
+
+  if (!parsed) {
+    throw new Error(fallbackErrorMessage);
+  }
+
+  return parsed as T;
 }
 
 export async function fetchServicesCatalog(): Promise<{
   services: Product[];
   settings: BusinessSettings;
 }> {
-  const res = await fetch('/api/services', { headers: getHeaders() });
-  if (!res.ok) throw new Error('Unable to load salon services.');
-  return res.json();
+  try {
+    const res = await fetch('/api/services', { headers: getHeaders() });
+    return await parseApiResponse(res, 'Unable to load the salon service catalog.');
+  } catch {
+    return {
+      services: PRODUCTS,
+      settings: DEFAULT_BUSINESS_SETTINGS
+    };
+  }
 }
 
 export async function fetchAvailableSlots(
@@ -93,16 +157,39 @@ export async function fetchAvailableSlots(
   availableSlots: string[];
   bookedSlots: string[];
 }> {
-  const q = new URLSearchParams({ date });
-  if (excludeBookingId) q.set('excludeBookingId', excludeBookingId);
-  const res = await fetch(`/api/availability/slots?${q.toString()}`, {
-    headers: getHeaders()
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.error || 'Unable to check availability for this date.');
+  try {
+    const q = new URLSearchParams({ date });
+    if (excludeBookingId) q.set('excludeBookingId', excludeBookingId);
+    const res = await fetch(`/api/availability/slots?${q.toString()}`, {
+      headers: getHeaders()
+    });
+    return await parseApiResponse(
+      res,
+      'Unable to check availability for the selected date.'
+    );
+  } catch {
+    // Graceful fallback to atelier schedule so booking is never blocked
+    const [y, m, d] = date.split('-').map(Number);
+    const dow = new Date(y, m - 1, d).getDay();
+    const cfg = DEFAULT_AVAILABILITY.find((a) => a.dayOfWeek === dow);
+    if (!cfg || !cfg.isOpen) {
+      return {
+        date,
+        isOpen: false,
+        dayName: cfg?.dayName || 'Closed',
+        availableSlots: [],
+        bookedSlots: []
+      };
+    }
+    return {
+      date,
+      isOpen: true,
+      dayName: cfg.dayName,
+      allSlots: cfg.slots,
+      availableSlots: cfg.slots,
+      bookedSlots: []
+    };
   }
-  return res.json();
 }
 
 export async function createAppointment(payload: {
@@ -125,12 +212,21 @@ export async function createAppointment(payload: {
     headers: getHeaders(),
     body: JSON.stringify(payload)
   });
-  const data = await res.json();
-  if (!res.ok) {
-    throw new Error(data.error || 'Unable to confirm appointment.');
-  }
+  const data = await parseApiResponse<{
+    booking: Booking;
+    emailLog?: EmailLog;
+    token?: string;
+    user?: UserProfile;
+  }>(
+    res,
+    'We could not complete your reservation right now. Please verify your details and try again.'
+  );
+
   if (data.token) {
     setAuthToken(data.token);
+  }
+  if (data.user) {
+    setStoredUser(data.user);
   }
   if (data.booking) {
     await syncBookingCreationToFirestore(data.booking).catch(() => {});
@@ -150,9 +246,13 @@ export async function loginUser(
     headers: getHeaders(),
     body: JSON.stringify({ email, password })
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Sign in failed.');
+  const data = await parseApiResponse<{
+    token: string;
+    user: UserProfile;
+  }>(res, 'Invalid email address or password. Please verify your credentials.');
+
   setAuthToken(data.token);
+  setStoredUser(data.user);
   return data;
 }
 
@@ -162,6 +262,7 @@ export async function sendVerificationCode(payload: {
 }): Promise<{
   sent: boolean;
   sentViaResend: boolean;
+  verificationToken?: string;
   fallbackCode?: string;
   message: string;
 }> {
@@ -170,9 +271,10 @@ export async function sendVerificationCode(payload: {
     headers: getHeaders(),
     body: JSON.stringify(payload)
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Unable to send verification code.');
-  return data;
+  return parseApiResponse(
+    res,
+    'Unable to dispatch the verification code right now. Please check your email address and try again.'
+  );
 }
 
 export async function registerUser(payload: {
@@ -182,6 +284,7 @@ export async function registerUser(payload: {
   password: string;
   hairTextureNotes?: string;
   verificationCode?: string;
+  verificationToken?: string;
 }): Promise<{
   token: string;
   user: UserProfile;
@@ -191,9 +294,16 @@ export async function registerUser(payload: {
     headers: getHeaders(),
     body: JSON.stringify(payload)
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Registration failed.');
+  const data = await parseApiResponse<{
+    token: string;
+    user: UserProfile;
+  }>(
+    res,
+    'Unable to create your account. Please verify your 6-digit code and try again.'
+  );
+
   setAuthToken(data.token);
+  setStoredUser(data.user);
   return data;
 }
 
@@ -206,9 +316,10 @@ export async function resetUserPassword(
     headers: getHeaders(),
     body: JSON.stringify({ email, newPassword })
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Unable to reset password.');
-  return data;
+  return parseApiResponse(
+    res,
+    'Unable to update your password. Please check your email address and try again.'
+  );
 }
 
 export async function fetchCustomerBookings(): Promise<{
@@ -216,9 +327,10 @@ export async function fetchCustomerBookings(): Promise<{
   emailLogs: EmailLog[];
 }> {
   const res = await fetch('/api/account/bookings', { headers: getHeaders() });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Unable to load your appointments.');
-  return data;
+  return parseApiResponse(
+    res,
+    'Please sign in to view your upcoming and past reservations.'
+  );
 }
 
 export async function updateCustomerProfile(payload: {
@@ -231,8 +343,11 @@ export async function updateCustomerProfile(payload: {
     headers: getHeaders(),
     body: JSON.stringify(payload)
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Unable to update profile.');
+  const data = await parseApiResponse<{ user: UserProfile }>(
+    res,
+    'Unable to save your profile changes right now.'
+  );
+  setStoredUser(data.user);
   await syncFirebaseUserToFirestore({
     name: payload.name,
     phone: payload.phone,
@@ -255,8 +370,10 @@ export async function updateCustomerBooking(
     headers: getHeaders(),
     body: JSON.stringify(payload)
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Unable to update appointment.');
+  const data = await parseApiResponse<{ booking: Booking }>(
+    res,
+    'Unable to update your reservation right now. Please try again.'
+  );
   await syncBookingUpdateToFirestore(bookingId, payload.action, {
     date: payload.appointmentDate,
     time: payload.startTime,
@@ -281,9 +398,10 @@ export async function fetchDashboardOverview(): Promise<{
   emailLogs: EmailLog[];
 }> {
   const res = await fetch('/api/dashboard/overview', { headers: getHeaders() });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Unable to load salon dashboard.');
-  return data;
+  return parseApiResponse(
+    res,
+    'Access denied. Please sign in with your Salon Owner credentials.'
+  );
 }
 
 export async function updateDashboardBookingStatus(
@@ -296,9 +414,7 @@ export async function updateDashboardBookingStatus(
     headers: getHeaders(),
     body: JSON.stringify({ status, notes })
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Unable to update booking status.');
-  return data;
+  return parseApiResponse(res, 'Unable to update reservation status.');
 }
 
 export async function retryBookingConfirmationEmail(bookingId: string): Promise<{
@@ -309,9 +425,7 @@ export async function retryBookingConfirmationEmail(bookingId: string): Promise<
     method: 'POST',
     headers: getHeaders()
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Unable to resend confirmation email.');
-  return data;
+  return parseApiResponse(res, 'Unable to resend confirmation email.');
 }
 
 export async function createSalonService(
@@ -322,8 +436,10 @@ export async function createSalonService(
     headers: getHeaders(),
     body: JSON.stringify(payload)
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Unable to create service.');
+  const data = await parseApiResponse<{ service: Product }>(
+    res,
+    'Unable to create new salon service.'
+  );
   if (data.service) {
     await syncServiceToFirestore(data.service).catch(() => {});
   }
@@ -339,8 +455,10 @@ export async function updateSalonService(
     headers: getHeaders(),
     body: JSON.stringify(payload)
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Unable to update service.');
+  const data = await parseApiResponse<{ service: Product }>(
+    res,
+    'Unable to update salon service.'
+  );
   if (data.service) {
     await syncServiceToFirestore(data.service).catch(() => {});
   }
@@ -355,8 +473,10 @@ export async function updateSalonAvailability(
     headers: getHeaders(),
     body: JSON.stringify({ availability })
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Unable to update availability.');
+  const data = await parseApiResponse<{ availability: DayAvailability[] }>(
+    res,
+    'Unable to update salon schedule.'
+  );
   if (data.availability) {
     await syncAvailabilityToFirestore(data.availability).catch(() => {});
   }
@@ -371,7 +491,5 @@ export async function updateSalonSettings(
     headers: getHeaders(),
     body: JSON.stringify({ settings })
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Unable to save settings.');
-  return data;
+  return parseApiResponse(res, 'Unable to save salon settings.');
 }

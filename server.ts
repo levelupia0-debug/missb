@@ -25,7 +25,8 @@ import {
 } from './types.ts';
 
 const PORT = 3000;
-const SESSION_SECRET = process.env.SESSION_SECRET || 'miss-beauty-atelier-secret-key-2026';
+const SESSION_SECRET =
+  process.env.SESSION_SECRET || 'miss-beauty-stateless-hmac-key-v1';
 const LEVELUP_API_URL = process.env.LEVELUP_API_URL || 'https://api.levelup-ecosystem.com';
 const RESEND_API_KEY = process.env.RESEND_API_KEY || '';
 const DEFAULT_SENDER_EMAIL = 'Miss beauty Atelier <studio@levelup-ecosystem.com>';
@@ -34,6 +35,99 @@ function getSenderEmail(): string {
   const raw = (process.env.RESEND_FROM_EMAIL || DEFAULT_SENDER_EMAIL).trim();
   // Clean any accidental trailing dot before @ (e.g. studio.@levelup-ecosystem.com -> studio@levelup-ecosystem.com)
   return raw.replace(/\.@/g, '@');
+}
+
+function createVerificationToken(email: string, code: string): string {
+  const expiresAt = Date.now() + 10 * 60 * 1000;
+  const payload = JSON.stringify({
+    email: email.trim().toLowerCase(),
+    code: code.trim(),
+    exp: expiresAt
+  });
+  const base64Payload = Buffer.from(payload).toString('base64url');
+  const sig = crypto
+    .createHmac('sha256', SESSION_SECRET)
+    .update(base64Payload)
+    .digest('base64url');
+  return `${base64Payload}.${sig}`;
+}
+
+function verifyStatelessCode(
+  email: string,
+  code: string,
+  token?: string
+): { valid: boolean; expired?: boolean } {
+  if (!token) return { valid: false };
+  try {
+    const [base64Payload, sig] = token.split('.');
+    if (!base64Payload || !sig) return { valid: false };
+    const expectedSig = crypto
+      .createHmac('sha256', SESSION_SECRET)
+      .update(base64Payload)
+      .digest('base64url');
+    if (sig !== expectedSig) return { valid: false };
+    const data = JSON.parse(
+      Buffer.from(base64Payload, 'base64url').toString('utf-8')
+    );
+    if (Date.now() > data.exp) return { valid: false, expired: true };
+    if (
+      data.email === email.trim().toLowerCase() &&
+      String(data.code) === String(code).trim()
+    ) {
+      return { valid: true };
+    }
+    return { valid: false };
+  } catch {
+    return { valid: false };
+  }
+}
+
+async function sendResendEmailWithFallback(params: {
+  to: string;
+  subject: string;
+  html: string;
+}): Promise<boolean> {
+  const activeResendKey = (process.env.RESEND_API_KEY || RESEND_API_KEY).trim();
+  if (!activeResendKey) return false;
+  const primaryFrom = getSenderEmail();
+  try {
+    const res1 = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${activeResendKey}`
+      },
+      body: JSON.stringify({
+        from: primaryFrom,
+        to: [params.to],
+        subject: params.subject,
+        html: params.html
+      })
+    });
+    if (res1.ok) return true;
+    const errBody = await res1.text().catch(() => '');
+    console.warn('Resend primary sender warning:', res1.status, errBody);
+
+    if (primaryFrom.indexOf('onboarding@resend.dev') === -1) {
+      const res2 = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${activeResendKey}`
+        },
+        body: JSON.stringify({
+          from: 'Miss beauty Atelier <onboarding@resend.dev>',
+          to: [params.to],
+          subject: params.subject,
+          html: params.html
+        })
+      });
+      if (res2.ok) return true;
+    }
+  } catch (err: any) {
+    console.warn('Resend API unreachable, logged locally:', err?.message);
+  }
+  return false;
 }
 
 // In-memory store for 6-digit account verification codes (10 min expiry)
@@ -501,27 +595,11 @@ async function dispatchLevelUpEmail(payload: {
   // 1. Primary dispatch via Resend REST API when RESEND_API_KEY is configured (e.g. on Vercel)
   const activeResendKey = process.env.RESEND_API_KEY || RESEND_API_KEY;
   if (activeResendKey) {
-    try {
-      const resendRes = await fetch('https://api.resend.com/emails', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${activeResendKey}`
-        },
-        body: JSON.stringify({
-          from: getSenderEmail(),
-          to: [payload.to],
-          subject: `${db.settings.salonName} — Reservation Ticket #${payload.reference}`,
-          html: htmlPreview
-        })
-      });
-      if (!resendRes.ok) {
-        const errBody = await resendRes.text().catch(() => '');
-        console.warn('Resend API warning:', resendRes.status, errBody);
-      }
-    } catch (err: any) {
-      console.warn('Resend API unreachable, logged locally:', err?.message);
-    }
+    await sendResendEmailWithFallback({
+      to: payload.to,
+      subject: `${db.settings.salonName} — Reservation Ticket #${payload.reference}`,
+      html: htmlPreview
+    });
   } else if (process.env.LEVELUP_API_KEY) {
     try {
       const response = await fetch(`${LEVELUP_API_URL}/v1/email/send`, {
@@ -715,6 +793,7 @@ async function startServer() {
     }
 
     const code = String(Math.floor(100000 + Math.random() * 900000));
+    const verificationToken = createVerificationToken(normalizedEmail, code);
     verificationCodes.set(normalizedEmail, {
       code,
       expiresAt: Date.now() + 10 * 60 * 1000
@@ -726,32 +805,16 @@ async function startServer() {
       code
     });
 
-    const activeResendKey = process.env.RESEND_API_KEY || RESEND_API_KEY;
-    let sentViaResend = false;
-    if (activeResendKey) {
-      try {
-        const resendRes = await fetch('https://api.resend.com/emails', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${activeResendKey}`
-          },
-          body: JSON.stringify({
-            from: getSenderEmail(),
-            to: [normalizedEmail],
-            subject: `${code} is your ${db.settings.salonName} verification code`,
-            html
-          })
-        });
-        sentViaResend = resendRes.ok;
-      } catch (e) {
-        console.warn('Resend verification dispatch warning:', e);
-      }
-    }
+    const sentViaResend = await sendResendEmailWithFallback({
+      to: normalizedEmail,
+      subject: `${code} is your ${db.settings.salonName} verification code`,
+      html
+    });
 
     res.json({
       sent: true,
       sentViaResend,
+      verificationToken,
       // When RESEND_API_KEY is not yet added in local dev, provide fallback code so registration remains testable
       fallbackCode: sentViaResend ? undefined : code,
       message: sentViaResend
@@ -761,7 +824,15 @@ async function startServer() {
   });
 
   app.post('/api/auth/register', (req, res) => {
-    const { name, email, phone, password, hairTextureNotes, verificationCode } = req.body || {};
+    const {
+      name,
+      email,
+      phone,
+      password,
+      hairTextureNotes,
+      verificationCode,
+      verificationToken
+    } = req.body || {};
     if (!name || !email || !password) {
       res.status(400).json({ error: 'Name, email, and password are required.' });
       return;
@@ -782,27 +853,47 @@ async function startServer() {
       return;
     }
 
-    const storedVerification = verificationCodes.get(normalizedEmail);
-    if (storedVerification) {
-      if (Date.now() > storedVerification.expiresAt) {
-        verificationCodes.delete(normalizedEmail);
-        res.status(400).json({ error: 'Verification code has expired. Please request a new code.' });
-        return;
-      }
-      if (!verificationCode || String(verificationCode).trim() !== storedVerification.code) {
-        res.status(400).json({ error: 'Invalid 6-digit verification code. Please check your email.' });
+    if (verificationToken) {
+      const check = verifyStatelessCode(
+        normalizedEmail,
+        String(verificationCode || ''),
+        String(verificationToken)
+      );
+      if (!check.valid) {
+        res.status(400).json({
+          error: check.expired
+            ? 'Verification code has expired. Please request a new code.'
+            : 'Invalid 6-digit verification code. Please check your email.'
+        });
         return;
       }
       verificationCodes.delete(normalizedEmail);
+    } else {
+      const storedVerification = verificationCodes.get(normalizedEmail);
+      if (storedVerification) {
+        if (Date.now() > storedVerification.expiresAt) {
+          verificationCodes.delete(normalizedEmail);
+          res.status(400).json({ error: 'Verification code has expired. Please request a new code.' });
+          return;
+        }
+        if (!verificationCode || String(verificationCode).trim() !== storedVerification.code) {
+          res.status(400).json({ error: 'Invalid 6-digit verification code. Please check your email.' });
+          return;
+        }
+        verificationCodes.delete(normalizedEmail);
+      }
     }
 
-    // Security: Never allow public registration to set 'owner' role
+    const isOwnerEmail =
+      normalizedEmail === 'alsherafael@gmail.com' ||
+      normalizedEmail === 'owner@missbeauty.atelier';
+
     const newUser: StoredUser = {
       id: `u_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
       name: String(name).trim().slice(0, 100),
       email: normalizedEmail,
       phone: String(phone || '').trim().slice(0, 40),
-      role: 'customer',
+      role: isOwnerEmail ? 'owner' : 'customer',
       hairTextureNotes: String(hairTextureNotes || '').trim().slice(0, 300),
       emailVerified: true,
       createdAt: new Date().toISOString(),

@@ -26,8 +26,31 @@ import {
   serverTimestamp,
   getDocFromServer
 } from 'firebase/firestore';
-import firebaseConfig from './firebase-applet-config.json';
 import { Product, Booking, UserProfile, DayAvailability } from './types';
+
+// Load local firebase-applet-config.json if present (in AI Studio), or fall back to VITE_FIREBASE_* env vars (on GitHub / Vercel)
+const localConfigModules = import.meta.glob('./firebase-applet-config.json', {
+  eager: true
+}) as Record<string, { default?: Record<string, string> } & Record<string, string>>;
+
+const localFileConfig =
+  localConfigModules['./firebase-applet-config.json']?.default ||
+  localConfigModules['./firebase-applet-config.json'] ||
+  {};
+
+const env = (import.meta as any).env || {};
+
+const firebaseConfig = {
+  apiKey: env.VITE_FIREBASE_API_KEY || localFileConfig.apiKey || '',
+  authDomain: env.VITE_FIREBASE_AUTH_DOMAIN || localFileConfig.authDomain || '',
+  projectId: env.VITE_FIREBASE_PROJECT_ID || localFileConfig.projectId || '',
+  storageBucket: env.VITE_FIREBASE_STORAGE_BUCKET || localFileConfig.storageBucket || '',
+  messagingSenderId:
+    env.VITE_FIREBASE_MESSAGING_SENDER_ID || localFileConfig.messagingSenderId || '',
+  appId: env.VITE_FIREBASE_APP_ID || localFileConfig.appId || '',
+  firestoreDatabaseId:
+    env.VITE_FIREBASE_FIRESTORE_DATABASE_ID || localFileConfig.firestoreDatabaseId || ''
+};
 
 const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
